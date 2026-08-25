@@ -6,7 +6,7 @@ import structlog
 import logging
 
 from app.config import get_settings
-from app.routes import health, transactions, webhooks, transaction_history, accounts
+from app.routes import health, transactions, webhooks, transaction_history, accounts, settlements
 from app.grpc_client import get_grpc_client
 from app.idempotency import IdempotencyMiddleware
 from app.rate_limit import RateLimitMiddleware
@@ -79,6 +79,7 @@ app.include_router(transactions.router)
 app.include_router(webhooks.router)
 app.include_router(transaction_history.router)
 app.include_router(accounts.router)
+app.include_router(settlements.router)
 
 app.add_route("/metrics", metrics_endpoint)
 
