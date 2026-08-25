@@ -1,12 +1,3 @@
-mod ledger {
-    pub mod domain;
-    pub mod service;
-    pub mod idempotency;
-    pub mod outbox;
-    pub mod poller;
-}
-mod grpc_server;
-
 use std::net::SocketAddr;
 use sqlx::PgPool;
 use tokio::signal;
@@ -53,6 +44,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         if let Err(e) = poller.run().await {
             error!("Outbox poller failed: {}", e);
         }
+    });
+    
+    let pool_for_auditor = pool.clone();
+    tokio::spawn(async move {
+        ledger::auditor::run_balance_auditor_scheduled(pool_for_auditor, 24).await;
     });
     
     info!("Starting gRPC server on {}", grpc_addr);

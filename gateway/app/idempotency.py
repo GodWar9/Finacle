@@ -10,6 +10,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
 from app.config import get_settings
+from app.metrics import IDEMPOTENCY_REPLAYS, IDEMPOTENCY_CONFLICTS
 
 logger = structlog.get_logger()
 settings = get_settings()
@@ -45,10 +46,12 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         if cached:
             cached_obj = json.loads(cached)
             if cached_obj["request_hash"] != req_hash:
+                IDEMPOTENCY_CONFLICTS.inc()
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="Idempotency-Key reused with a different request body"
                 )
+            IDEMPOTENCY_REPLAYS.labels(source="redis").inc()
             logger.info("idempotency_replay_redis", key=idempotency_key)
             return JSONResponse(
                 cached_obj["response_body"],
@@ -58,11 +61,13 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         row = await self.fetch_idempotency_record(idempotency_key)
         if row:
             if row["request_hash"] != req_hash:
+                IDEMPOTENCY_CONFLICTS.inc()
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="Idempotency-Key reused with a different request body"
                 )
             await self.redis.set(cache_key, json.dumps(row), ex=IDEMPOTENCY_TTL_SECONDS)
+            IDEMPOTENCY_REPLAYS.labels(source="postgres").inc()
             logger.info("idempotency_replay_postgres", key=idempotency_key)
             return JSONResponse(row["response_body"], status_code=row["status_code"])
 

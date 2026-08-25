@@ -2,6 +2,7 @@ import redis.asyncio as redis
 from fastapi import HTTPException, Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.config import get_settings
+from app.metrics import RATE_LIMIT_EXCEEDED
 
 settings = get_settings()
 
@@ -24,6 +25,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             await self.redis.expire(key, 1)
         
         if current > self.limit_per_sec:
+            RATE_LIMIT_EXCEEDED.inc()
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="rate limit exceeded"

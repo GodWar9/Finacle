@@ -10,6 +10,7 @@ from app.routes import health, transactions
 from app.grpc_client import get_grpc_client
 from app.idempotency import IdempotencyMiddleware
 from app.rate_limit import RateLimitMiddleware
+from app.metrics import PrometheusMiddleware, metrics_endpoint
 
 structlog.configure(
     processors=[
@@ -67,11 +68,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(PrometheusMiddleware)
 app.add_middleware(RateLimitMiddleware, redis_client=redis_client)
 app.add_middleware(IdempotencyMiddleware, redis_client=redis_client, pg_pool=pg_pool)
 
 app.include_router(health.router)
 app.include_router(transactions.router)
+
+app.add_route("/metrics", metrics_endpoint)
 
 @app.get("/")
 async def root():
