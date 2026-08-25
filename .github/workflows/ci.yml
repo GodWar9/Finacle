@@ -45,7 +45,7 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       
       - name: Install sqlx-cli
-        run: cargo install sqlx-cli --no-default-features --features postgres
+        run: cargo install sqlx-cli --version 0.7.4 --no-default-features --features postgres
       
       - name: Run migrations
         run: |
@@ -65,6 +65,20 @@ jobs:
         run: cargo test --manifest-path core/Cargo.toml
         env:
           DATABASE_URL: postgresql://ledger_app:dev_only@localhost:5432/ledger
+
+      - name: Prepare sqlx offline data
+        run: |
+          cd core
+          cargo sqlx prepare --database-url postgresql://ledger_app:dev_only@localhost:5432/ledger -- --all-targets
+        env:
+          DATABASE_URL: postgresql://ledger_app:dev_only@localhost:5432/ledger
+
+      - name: Upload sqlx offline data
+        uses: actions/upload-artifact@v4
+        with:
+          name: sqlx-offline
+          path: core/.sqlx/
+          retention-days: 7
 
   cpp-tests:
     name: C++ Tests (Reconciliation Engine)
@@ -135,6 +149,16 @@ jobs:
           cd gateway
           pip install -e ".[dev]"
       
+      - name: Generate gRPC stubs
+        run: |
+          cd gateway
+          python -m grpc_tools.protoc \
+            --proto_path=../core/proto \
+            --python_out=. \
+            --grpc_python_out=. \
+            --pyi_out=. \
+            ../core/proto/ledger.proto
+
       - name: Run tests
         run: |
           cd gateway
@@ -181,7 +205,13 @@ jobs:
     if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
-      
+
+      - name: Download sqlx offline data
+        uses: actions/download-artifact@v4
+        with:
+          name: sqlx-offline
+          path: core/.sqlx
+
       - name: Build all images
         run: |
           docker compose build

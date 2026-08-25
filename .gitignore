@@ -15,6 +15,14 @@ __pycache__/
 venv/
 .pytest_cache/
 
+# Generated gRPC stubs
+*_pb2.py
+*_pb2.pyi
+*_pb2_grpc.py
+
+# sqlx offline cache (generated in CI, passed via artifact)
+.sqlx/
+
 # Environment
 .env
 .env.local

@@ -6,6 +6,9 @@ COPY core/Cargo.toml core/Cargo.lock ./
 COPY core/src ./src
 COPY db ./db
 
+COPY core/.sqlx ./.sqlx
+ENV SQLX_OFFLINE=true
+
 RUN cargo build --release
 
 FROM debian:bookworm-slim

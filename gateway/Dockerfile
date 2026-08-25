@@ -8,16 +8,15 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml .
+COPY app ./app
 RUN pip install --no-cache-dir -e .
 
-COPY app ./app
-COPY ../core/proto ./proto
-
+COPY core/proto ./proto
 RUN python -m grpc_tools.protoc \
     --proto_path=proto \
-    --python_out=app \
-    --grpc_python_out=app \
-    --pyi_out=app \
+    --python_out=. \
+    --grpc_python_out=. \
+    --pyi_out=. \
     proto/ledger.proto
 
 EXPOSE 8000
