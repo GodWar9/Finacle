@@ -1,4 +1,6 @@
 import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
+
 from app.embedding import chunk_text
 
 def test_chunk_text_short():
