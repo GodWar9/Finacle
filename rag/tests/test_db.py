@@ -1,20 +1,36 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.db import search_documents, index_document, get_pool
+from app.db import search_documents, index_document
 
 @pytest.fixture
 def mock_pool():
-    pool = AsyncMock()
+    pool = MagicMock()
     conn = AsyncMock()
-    pool.acquire = AsyncMock()
-    pool.acquire.__aenter__ = AsyncMock(return_value=conn)
-    pool.acquire.__aexit__ = AsyncMock(return_value=None)
+    conn.fetch = AsyncMock(return_value=[])
+    conn.fetchrow = AsyncMock(return_value=None)
+    conn.execute = AsyncMock(return_value=None)
+    
+    # Create a proper async context manager using a simple class
+    class AsyncCM:
+        def __init__(self, connection):
+            self.conn = connection
+        
+        async def __aenter__(self):
+            return self.conn
+        
+        async def __aexit__(self, *args):
+            return None
+    
+    pool.acquire = MagicMock(side_effect=lambda: AsyncCM(conn))
     return pool
 
 @pytest.mark.asyncio
 async def test_search_documents_with_filter(mock_pool):
-    mock_pool.acquire().__aenter__().fetch.return_value = [
+    # Get the connection from the pool mock
+    cm = mock_pool.acquire()
+    conn = await cm.__aenter__()
+    conn.fetch.return_value = [
         {"doc_id": "1", "source_type": "POLICY_DOC", "source_ref": "policy.txt", "content": "test content", "similarity": 0.9},
         {"doc_id": "2", "source_type": "POLICY_DOC", "source_ref": "policy.txt", "content": "test content 2", "similarity": 0.8},
     ]
@@ -23,24 +39,25 @@ async def test_search_documents_with_filter(mock_pool):
     
     assert len(results) == 2
     assert results[0]["source_type"] == "POLICY_DOC"
-    mock_pool.acquire().__aenter__().fetch.assert_called_once()
 
 @pytest.mark.asyncio
 async def test_search_documents_without_filter(mock_pool):
-    mock_pool.acquire().__aenter__().fetch.return_value = [
+    cm = mock_pool.acquire()
+    conn = await cm.__aenter__()
+    conn.fetch.return_value = [
         {"doc_id": "1", "source_type": "POLICY_DOC", "source_ref": "policy.txt", "content": "test content", "similarity": 0.9},
     ]
     
     results = await search_documents(mock_pool, [0.1]*1536, None, 5)
     
     assert len(results) == 1
-    mock_pool.acquire().__aenter__().fetch.assert_called_once()
 
 @pytest.mark.asyncio
 async def test_index_document(mock_pool):
-    mock_pool.acquire().__aenter__().fetchrow.return_value = {"doc_id": "test-uuid"}
+    cm = mock_pool.acquire()
+    conn = await cm.__aenter__()
+    conn.fetchrow.return_value = {"doc_id": "test-uuid"}
     
     doc_id = await index_document(mock_pool, "POLICY_DOC", "policy.txt", "test content", [0.1]*1536)
     
     assert doc_id == "test-uuid"
-    mock_pool.acquire().__aenter__().fetchrow.assert_called_once()

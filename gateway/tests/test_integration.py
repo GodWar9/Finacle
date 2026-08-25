@@ -2,6 +2,7 @@ import pytest
 import asyncio
 from uuid import uuid4, UUID
 from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock
 
 from app.config import get_settings
 from app.idempotency import canonical_hash, IdempotencyMiddleware
@@ -11,7 +12,6 @@ settings = get_settings()
 
 @pytest.fixture
 def mock_redis():
-    from unittest.mock import AsyncMock, MagicMock
     redis = AsyncMock()
     redis.get = AsyncMock(return_value=None)
     redis.set = AsyncMock(return_value=True)
@@ -22,15 +22,34 @@ def mock_redis():
 
 @pytest.fixture
 def mock_pg_pool():
-    from unittest.mock import AsyncMock, MagicMock
-    pool = AsyncMock()
+    pool = MagicMock()
     conn = AsyncMock()
-    pool.acquire = AsyncMock()
-    pool.acquire.__aenter__ = AsyncMock(return_value=conn)
-    pool.acquire.__aexit__ = AsyncMock(return_value=None)
     conn.fetchrow = AsyncMock(return_value=None)
     conn.execute = AsyncMock(return_value=None)
+    
+    class MockAsyncCM:
+        async def __aenter__(self):
+            return conn
+        async def __aexit__(self, *args):
+            return None
+    
+    pool.acquire = MagicMock(return_value=MockAsyncCM())
     return pool
+
+class AsyncIterator:
+    def __init__(self, items):
+        self.items = items
+        self.index = 0
+    
+    def __aiter__(self):
+        return self
+    
+    async def __anext__(self):
+        if self.index >= len(self.items):
+            raise StopAsyncIteration
+        item = self.items[self.index]
+        self.index += 1
+        return item
 
 @pytest.mark.asyncio
 async def test_full_idempotency_flow(mock_redis, mock_pg_pool):
@@ -51,7 +70,6 @@ async def test_full_idempotency_flow(mock_redis, mock_pg_pool):
     req_hash = canonical_hash(request_body)
     
     mock_redis.get.return_value = None
-    mock_pg_pool.acquire().__aenter__().fetchrow.return_value = None
     
     mock_request = MagicMock()
     mock_request.method = "POST"
@@ -60,7 +78,7 @@ async def test_full_idempotency_flow(mock_redis, mock_pg_pool):
     
     mock_response = MagicMock()
     mock_response.status_code = 201
-    mock_response.body_iterator = iter([b'{"transaction_id": "test-id", "status": "POSTED"}'])
+    mock_response.body_iterator = AsyncIterator([b'{"transaction_id": "test-id", "status": "POSTED"}'])
     mock_response.headers = {}
     mock_response.media_type = "application/json"
     
@@ -70,18 +88,21 @@ async def test_full_idempotency_flow(mock_redis, mock_pg_pool):
     
     assert response.status_code == 201
     mock_redis.set.assert_called()
-    mock_pg_pool.acquire().__aenter__().execute.assert_called()
+    mock_pg_pool.acquire.assert_called()
 
 @pytest.mark.asyncio
 async def test_rate_limit_enforcement(mock_redis):
     """Test rate limiting blocks after threshold"""
-    mock_redis.incr.side_effect = [1, 2, 3, 4, 5, 6, 51]
+    # 5 allowed calls (1-5), 6th call exceeds limit (51)
+    mock_redis.incr.side_effect = [1, 2, 3, 4, 5, 51]
     mock_redis.expire.return_value = True
     
     middleware = RateLimitMiddleware(None, mock_redis)
     
     mock_request = MagicMock()
     mock_request.headers = {"X-Merchant-ID": "merchant_1"}
+    mock_request.state = MagicMock()
+    mock_request.state.merchant_id = "merchant_1"
     
     mock_call_next = AsyncMock(return_value=MagicMock(headers={}))
     

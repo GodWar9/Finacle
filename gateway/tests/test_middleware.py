@@ -29,8 +29,11 @@ async def test_idempotency_middleware_replay_redis():
     mock_redis = AsyncMock()
     mock_pg_pool = AsyncMock()
     
+    request_body = {"amount": 100, "currency": "INR"}
+    req_hash = canonical_hash(request_body)
+    
     mock_redis.get.return_value = json.dumps({
-        "request_hash": "abc123",
+        "request_hash": req_hash,
         "response_body": {"transaction_id": "test-id", "status": "POSTED"},
         "status_code": 201
     })
@@ -40,7 +43,7 @@ async def test_idempotency_middleware_replay_redis():
     mock_request = MagicMock()
     mock_request.method = "POST"
     mock_request.headers = {"Idempotency-Key": "test-key"}
-    mock_request.json = AsyncMock(return_value={"amount": 100})
+    mock_request.json = AsyncMock(return_value=request_body)
     
     mock_call_next = AsyncMock()
     
@@ -55,8 +58,11 @@ async def test_idempotency_middleware_conflict():
     mock_redis = AsyncMock()
     mock_pg_pool = AsyncMock()
     
+    request_body = {"amount": 100, "currency": "INR"}
+    req_hash = canonical_hash(request_body)
+    
     mock_redis.get.return_value = json.dumps({
-        "request_hash": "abc123",
+        "request_hash": req_hash,
         "response_body": {"transaction_id": "test-id"},
         "status_code": 201
     })
@@ -66,7 +72,8 @@ async def test_idempotency_middleware_conflict():
     mock_request = MagicMock()
     mock_request.method = "POST"
     mock_request.headers = {"Idempotency-Key": "test-key"}
-    mock_request.json = AsyncMock(return_value={"amount": 200})
+    # Different body than cached
+    mock_request.json = AsyncMock(return_value={"amount": 200, "currency": "INR"})
     
     mock_call_next = AsyncMock()
     
@@ -104,6 +111,8 @@ async def test_rate_limit_middleware():
     
     mock_request = MagicMock()
     mock_request.headers = {"X-Merchant-ID": "merchant_1"}
+    mock_request.state = MagicMock()
+    mock_request.state.merchant_id = "merchant_1"
     
     mock_call_next = AsyncMock()
     mock_call_next.return_value = MagicMock(headers={})
