@@ -6,7 +6,7 @@ import structlog
 import logging
 
 from app.config import get_settings
-from app.routes import health, transactions, webhooks
+from app.routes import health, transactions, webhooks, transaction_history, accounts
 from app.grpc_client import get_grpc_client
 from app.idempotency import IdempotencyMiddleware
 from app.rate_limit import RateLimitMiddleware
@@ -77,6 +77,8 @@ app.add_middleware(IdempotencyMiddleware, redis_client=redis_client, pg_pool=pg_
 app.include_router(health.router)
 app.include_router(transactions.router)
 app.include_router(webhooks.router)
+app.include_router(transaction_history.router)
+app.include_router(accounts.router)
 
 app.add_route("/metrics", metrics_endpoint)
 
