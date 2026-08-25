@@ -23,7 +23,11 @@ pub async fn post_transaction(
             return Err(LedgerError::IdempotencyConflict(req.idempotency_key.clone()));
         }
         info!("Idempotency replay for key: {}", req.idempotency_key);
-        return Ok(cached.response);
+        return Ok(PostedTransaction {
+            transaction_id: cached.response_body["transaction_id"].as_str().unwrap_or("").parse().unwrap_or_default(),
+            status: cached.response_body["status"].as_str().unwrap_or("POSTED").to_string(),
+            posted_at_unix_ms: cached.response_body["posted_at_unix_ms"].as_i64().unwrap_or(0),
+        });
     }
     
     let mut tx: Transaction<'_, Postgres> = pool.begin().await?;

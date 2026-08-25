@@ -15,15 +15,22 @@ thiserror = "1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-opentelemetry = "0.23"
-opentelemetry = { version = "0.22", features = ["rt-tokio"] }
+opentelemetry = { version = "0.22", features = ["trace"] }
 opentelemetry-otlp = { version = "0.15", features = ["tonic"] }
-rust-decimal = "1.35"
+opentelemetry_sdk = { version = "0.22", features = ["rt-tokio"] }
+rust_decimal = "1.35"
 sha2 = "0.10"
 hex = "0.4"
 redis = { version = "0.24", features = ["tokio-comp", "connection-manager"] }
-kafka = "0.10"
-rdkafka = { version = "0.34", features = ["ssl"] }
 anyhow = "1.0"
 config = "0.13"
 dotenvy = "0.15"
 once_cell = "1.19"
+futures = "0.3"
+chrono = { version = "0.4", features = ["serde"] }
+
+rdkafka = { version = "0.34", features = ["ssl"], optional = true }
+
+[features]
+default = []
+kafka = ["rdkafka"]

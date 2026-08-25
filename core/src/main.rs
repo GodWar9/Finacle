@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 use sqlx::PgPool;
 use tokio::signal;
-use tracing::{info, error};
+use tracing::{info, error, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use grpc_server::LedgerGrpcServer;
@@ -18,7 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let database_url = std::env::var("DATABASE_URL")
         .expect("DATABASE_URL must be set");
     let kafka_brokers = std::env::var("KAFKA_BROKERS")
-        .expect("KAFKA_BROKERS must be set");
+        .unwrap_or_else(|_| "localhost:9092".to_string());
     let grpc_addr: SocketAddr = std::env::var("GRPC_ADDR")
         .unwrap_or_else(|_| "0.0.0.0:50051".to_string())
         .parse()?;
@@ -31,20 +31,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     let grpc_server = LedgerGrpcServer::new(pool.clone());
     
-    let pool_for_poller = pool.clone();
-    let kafka_brokers_clone = kafka_brokers.clone();
-    tokio::spawn(async move {
-        let poller = ledger::poller::OutboxPoller::new(
-            pool_for_poller,
-            &kafka_brokers_clone,
-            100,
-            1000,
-        ).expect("Failed to create outbox poller");
-        
-        if let Err(e) = poller.run().await {
-            error!("Outbox poller failed: {}", e);
-        }
-    });
+    #[cfg(feature = "kafka")]
+    {
+        let pool_for_poller = pool.clone();
+        let kafka_brokers_clone = kafka_brokers.clone();
+        tokio::spawn(async move {
+            match ledger::poller::OutboxPoller::new(
+                pool_for_poller,
+                &kafka_brokers_clone,
+                100,
+                1000,
+            ) {
+                Ok(poller) => {
+                    if let Err(e) = poller.run().await {
+                        error!("Outbox poller failed: {}", e);
+                    }
+                }
+                Err(e) => {
+                    warn!("Failed to create outbox poller: {}", e);
+                }
+            }
+        });
+    }
+    
+    #[cfg(not(feature = "kafka"))]
+    {
+        warn!("Kafka feature not enabled - outbox poller disabled");
+    }
     
     let pool_for_auditor = pool.clone();
     tokio::spawn(async move {

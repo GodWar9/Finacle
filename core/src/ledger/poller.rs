@@ -1,10 +1,14 @@
+#[cfg(feature = "kafka")]
 use sqlx::{PgPool, Postgres, Transaction};
+#[cfg(feature = "kafka")]
 use rdkafka::producer::{FutureProducer, FutureRecord};
+#[cfg(feature = "kafka")]
 use rdkafka::ClientConfig;
 use uuid::Uuid;
 use tracing::{info, warn, error};
 use chrono::Utc;
 
+#[cfg(feature = "kafka")]
 pub struct OutboxPoller {
     pool: PgPool,
     producer: FutureProducer,
@@ -12,6 +16,7 @@ pub struct OutboxPoller {
     poll_interval_ms: u64,
 }
 
+#[cfg(feature = "kafka")]
 impl OutboxPoller {
     pub fn new(pool: PgPool, kafka_brokers: &str, batch_size: usize, poll_interval_ms: u64) -> Result<Self, Box<dyn std::error::Error>> {
         let producer: FutureProducer = ClientConfig::new()
@@ -83,6 +88,16 @@ impl OutboxPoller {
         }
         
         Ok(count)
+    }
+}
+
+#[cfg(not(feature = "kafka"))]
+pub struct OutboxPoller;
+
+#[cfg(not(feature = "kafka"))]
+impl OutboxPoller {
+    pub fn new(_pool: sqlx::PgPool, _kafka_brokers: &str, _batch_size: usize, _poll_interval_ms: u64) -> Result<Self, Box<dyn std::error::Error>> {
+        Err("Kafka feature not enabled".into())
     }
 }
 
