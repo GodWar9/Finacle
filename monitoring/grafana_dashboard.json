@@ -1,0 +1,147 @@
+{
+  "dashboard": {
+    "title": "Ledger Core - Transaction Monitoring",
+    "tags": ["ledger", "transactions", "banking"],
+    "timezone": "utc",
+    "panels": [
+      {
+        "title": "Transaction Throughput",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total{service=\"gateway\",endpoint=\"/api/v1/transactions\"}[1m])",
+            "legendFormat": "TPS"
+          }
+        ],
+        "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8}
+      },
+      {
+        "title": "Transaction Latency (p99)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.99, rate(http_request_duration_seconds_bucket{service=\"gateway\",endpoint=\"/api/v1/transactions\"}[5m]))",
+            "legendFormat": "p99"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{service=\"gateway\",endpoint=\"/api/v1/transactions\"}[5m]))",
+            "legendFormat": "p95"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket{service=\"gateway\",endpoint=\"/api/v1/transactions\"}[5m]))",
+            "legendFormat": "p50"
+          }
+        ],
+        "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8}
+      },
+      {
+        "title": "Idempotency Replays",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(idempotency_replays_total[5m])",
+            "legendFormat": "{{source}}"
+          }
+        ],
+        "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8}
+      },
+      {
+        "title": "Idempotency Conflicts",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(idempotency_conflicts_total[5m])",
+            "legendFormat": "conflicts"
+          }
+        ],
+        "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8}
+      },
+      {
+        "title": "Rate Limit Exceeded",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(rate_limit_exceeded_total[5m])",
+            "legendFormat": "exceeded"
+          }
+        ],
+        "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8}
+      },
+      {
+        "title": "gRPC Call Latency",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.99, rate(grpc_call_duration_seconds_bucket[5m]))",
+            "legendFormat": "{{method}} p99"
+          }
+        ],
+        "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8}
+      },
+      {
+        "title": "Reconciliation Exceptions",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(reconciliation_exceptions_total[5m])",
+            "legendFormat": "exceptions"
+          }
+        ],
+        "gridPos": {"x": 0, "y": 24, "w": 12, "h": 8}
+      },
+      {
+        "title": "Circuit Breaker State",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "circuit_breaker_state",
+            "legendFormat": "{{service}}"
+          }
+        ],
+        "gridPos": {"x": 12, "y": 24, "w": 12, "h": 8}
+      },
+      {
+        "title": "Active Connections",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "active_connections",
+            "legendFormat": "connections"
+          }
+        ],
+        "gridPos": {"x": 0, "y": 32, "w": 12, "h": 8}
+      },
+      {
+        "title": "Database Connections",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "pg_stat_database_numbackends",
+            "legendFormat": "connections"
+          },
+          {
+            "expr": "pg_settings_max_connections",
+            "legendFormat": "max"
+          }
+        ],
+        "gridPos": {"x": 12, "y": 32, "w": 12, "h": 8}
+      },
+      {
+        "title": "Kafka Consumer Lag",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "kafka_consumer_lag",
+            "legendFormat": "{{topic}}"
+          }
+        ],
+        "gridPos": {"x": 0, "y": 40, "w": 24, "h": 8}
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "10s"
+  }
+}
