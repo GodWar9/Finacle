@@ -47,7 +47,9 @@ services:
       ZOOKEEPER_CLIENT_PORT: 2181
 
   ledger-core:
-    build: ./core
+    build:
+      context: .
+      dockerfile: core/Dockerfile
     depends_on:
       postgres:
         condition: service_healthy

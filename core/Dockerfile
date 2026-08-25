@@ -1,10 +1,10 @@
-FROM rust:1.78 as builder
+FROM rust:1.78 AS builder
 
-WORKDIR /app
+WORKDIR /build/core
 
-COPY Cargo.toml Cargo.lock ./
-COPY src ./src
-COPY db/migrations ./db/migrations
+COPY core/Cargo.toml core/Cargo.lock ./
+COPY core/src ./src
+COPY db ./db
 
 RUN cargo build --release
 
@@ -18,8 +18,7 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-COPY --from=builder /app/target/release/ledger-core /app/ledger-core
-COPY --from=builder /app/db/migrations /app/db/migrations
+COPY --from=builder /build/core/target/release/ledger-core /app/ledger-core
 
 EXPOSE 50051
 

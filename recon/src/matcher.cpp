@@ -114,7 +114,9 @@ void Matcher::reconcile_parallel(
             if (ledger_row->status != bank_row.status) {
                 push_exception(exceptions, exceptions_mutex, ExceptionType::STATUS_MISMATCH, bank_row, *ledger_row);
             }
-    #ifndef _OPENMP
+    #ifdef _OPENMP
+        }
+    #else
         });
     #endif
     

@@ -51,16 +51,20 @@ jobs:
         run: |
           cd core
           sqlx database create --database-url postgresql://ledger_app:dev_only@localhost:5432/ledger
-          sqlx migrate run --database-url postgresql://ledger_app:dev_only@localhost:5432/ledger
+          sqlx migrate run --database-url postgresql://ledger_app:dev_only@localhost:5432/ledger --source ../db/migrations
       
       - name: Check formatting
         run: cargo fmt --check --manifest-path core/Cargo.toml
       
       - name: Run clippy
         run: cargo clippy --manifest-path core/Cargo.toml -- -D warnings
-      
+        env:
+          DATABASE_URL: postgresql://ledger_app:dev_only@localhost:5432/ledger
+
       - name: Run tests
         run: cargo test --manifest-path core/Cargo.toml
+        env:
+          DATABASE_URL: postgresql://ledger_app:dev_only@localhost:5432/ledger
 
   cpp-tests:
     name: C++ Tests (Reconciliation Engine)

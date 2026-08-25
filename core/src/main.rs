@@ -26,7 +26,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let pool = PgPool::connect(&database_url).await?;
     info!("Connected to database");
     
-    sqlx::migrate!("./db/migrations").run(&pool).await?;
+    sqlx::migrate!("../db/migrations").run(&pool).await?;
     info!("Migrations applied");
     
     let grpc_server = LedgerGrpcServer::new(pool.clone());
