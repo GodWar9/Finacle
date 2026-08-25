@@ -2,6 +2,8 @@
 #include <algorithm>
 #include <execution>
 #include <shared_mutex>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace recon {
 
@@ -61,16 +63,18 @@ void Matcher::reconcile_parallel(
     }
     
     std::mutex exceptions_mutex;
-    std::mutex index_mutex;
+    std::shared_mutex index_mutex;
     std::unordered_map<std::string, bool> matched_ledger;
     matched_ledger.reserve(ledger_records.size() * 2);
     
     #ifdef _OPENMP
     #pragma omp parallel for schedule(dynamic)
+    for (size_t i = 0; i < bank_records.size(); ++i) {
+        const SettlementRecord& bank_row = bank_records[i];
     #else
     std::for_each(std::execution::par_unseq, bank_records.begin(), bank_records.end(),
-    #endif
         [&](const SettlementRecord& bank_row) {
+    #endif
             const SettlementRecord* ledger_row = nullptr;
             bool found = false;
             
@@ -85,26 +89,33 @@ void Matcher::reconcile_parallel(
             
             if (!found) {
                 push_exception(exceptions, exceptions_mutex, ExceptionType::MISSING_IN_LEDGER, bank_row);
+    #ifdef _OPENMP
+                continue;
+    #else
                 return;
+    #endif
             }
             
             {
-                std::lock_guard<std::mutex> lock(index_mutex);
+                std::lock_guard<std::shared_mutex> lock(index_mutex);
                 matched_ledger[bank_row.external_reference] = true;
             }
             
             int64_t diff = std::llabs(ledger_row->amount_minor - bank_row.amount_minor);
             if (diff > config_.amount_tolerance_minor) {
                 push_exception(exceptions, exceptions_mutex, ExceptionType::AMOUNT_MISMATCH, bank_row, *ledger_row);
+    #ifdef _OPENMP
+                continue;
+    #else
                 return;
+    #endif
             }
             
             if (ledger_row->status != bank_row.status) {
                 push_exception(exceptions, exceptions_mutex, ExceptionType::STATUS_MISMATCH, bank_row, *ledger_row);
             }
-        }
     #ifndef _OPENMP
-    );
+        });
     #endif
     
     for (const auto& bank_row : bank_records) {

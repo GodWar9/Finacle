@@ -44,6 +44,9 @@ jobs:
             core/target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       
+      - name: Install sqlx-cli
+        run: cargo install sqlx-cli --no-default-features --features postgres
+      
       - name: Run migrations
         run: |
           cd core
@@ -131,7 +134,7 @@ jobs:
       - name: Run tests
         run: |
           cd gateway
-          pytest -v
+          pytest -v --tb=short
 
   python-rag-tests:
     name: Python Tests (RAG Copilot)
@@ -165,7 +168,7 @@ jobs:
       - name: Run tests
         run: |
           cd rag
-          pytest -v
+          pytest -v --tb=short
 
   docker-build:
     name: Docker Build
