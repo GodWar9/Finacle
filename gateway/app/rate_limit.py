@@ -13,7 +13,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.limit_per_sec = settings.rate_limit_per_sec
 
     async def dispatch(self, request: Request, call_next):
-        merchant_id = request.headers.get("X-Merchant-ID", "anonymous")
+        merchant_id = getattr(request.state, "merchant_id", None)
+        if not merchant_id:
+            merchant_id = request.headers.get("X-Merchant-ID", "anonymous")
         
         if merchant_id == "anonymous":
             return await call_next(request)

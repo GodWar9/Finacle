@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Header, HTTPException, status
+from fastapi import APIRouter, Header, HTTPException, status, Request, Depends
 from uuid import UUID
 import grpc
 import structlog
@@ -8,6 +8,7 @@ from app.models.schemas import (
     GetBalanceResponse, ReverseTransactionRequest
 )
 from app.grpc_client import get_grpc_client, ledger_pb2
+from app.auth import get_current_merchant
 
 logger = structlog.get_logger()
 router = APIRouter(prefix="/api/v1", tags=["transactions"])
@@ -15,7 +16,9 @@ router = APIRouter(prefix="/api/v1", tags=["transactions"])
 @router.post("/transactions", response_model=PostTransactionResponse, status_code=status.HTTP_201_CREATED)
 async def post_transaction(
     req: PostTransactionRequest,
-    idempotency_key: str = Header(..., alias="Idempotency-Key")
+    request: Request,
+    idempotency_key: str = Header(..., alias="Idempotency-Key"),
+    merchant_id: str = Depends(get_current_merchant)
 ):
     client = await get_grpc_client()
     
@@ -47,7 +50,7 @@ async def post_transaction(
             )
         except grpc.RpcError as e:
             if e.code() == grpc.StatusCode.ABORTED and attempt < max_retries - 1:
-                logger.warning("grpc_aborted_retry", attempt=attempt + 1, error=str(e))
+                logger.warning("grpc_aborted_retry", attempt=attempt + 1, error=str(e), merchant_id=merchant_id)
                 continue
             elif e.code() == grpc.StatusCode.ALREADY_EXISTS:
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=e.details())
@@ -56,13 +59,13 @@ async def post_transaction(
             elif e.code() == grpc.StatusCode.INVALID_ARGUMENT:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.details())
             else:
-                logger.error("grpc_error", error=str(e), code=e.code())
+                logger.error("grpc_error", error=str(e), code=e.code(), merchant_id=merchant_id)
                 raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"ledger core error: {e.details()}")
     
     raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="max retries exceeded")
 
 @router.get("/accounts/{account_id}/balance", response_model=GetBalanceResponse)
-async def get_balance(account_id: UUID):
+async def get_balance(account_id: UUID, merchant_id: str = Depends(get_current_merchant)):
     client = await get_grpc_client()
     
     grpc_req = ledger_pb2.GetBalanceRequest(account_id=str(account_id))
@@ -78,13 +81,14 @@ async def get_balance(account_id: UUID):
     except grpc.RpcError as e:
         if e.code() == grpc.StatusCode.NOT_FOUND:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.details())
-        logger.error("grpc_error", error=str(e), code=e.code())
+        logger.error("grpc_error", error=str(e), code=e.code(), merchant_id=merchant_id)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"ledger core error: {e.details()}")
 
 @router.post("/transactions/{transaction_id}/reverse", response_model=PostTransactionResponse)
 async def reverse_transaction(
     transaction_id: UUID,
     req: ReverseTransactionRequest,
+    merchant_id: str = Depends(get_current_merchant)
 ):
     client = await get_grpc_client()
     
@@ -106,5 +110,5 @@ async def reverse_transaction(
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=e.details())
         elif e.code() == grpc.StatusCode.NOT_FOUND:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.details())
-        logger.error("grpc_error", error=str(e), code=e.code())
+        logger.error("grpc_error", error=str(e), code=e.code(), merchant_id=merchant_id)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"ledger core error: {e.details()}")

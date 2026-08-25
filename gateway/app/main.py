@@ -11,6 +11,7 @@ from app.grpc_client import get_grpc_client
 from app.idempotency import IdempotencyMiddleware
 from app.rate_limit import RateLimitMiddleware
 from app.metrics import PrometheusMiddleware, metrics_endpoint
+from app.auth import AuthMiddleware
 
 structlog.configure(
     processors=[
@@ -69,6 +70,7 @@ app = FastAPI(
 )
 
 app.add_middleware(PrometheusMiddleware)
+app.add_middleware(AuthMiddleware)
 app.add_middleware(RateLimitMiddleware, redis_client=redis_client)
 app.add_middleware(IdempotencyMiddleware, redis_client=redis_client, pg_pool=pg_pool)
 
