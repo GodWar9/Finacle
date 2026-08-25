@@ -1,8 +1,6 @@
 # Ledger Core - Double-Entry Core Banking Transaction Engine
 
-A production-shaped core banking ledger system built with Rust, C++, and Python demonstrating real-world financial infrastructure patterns.
-
-## Architecture
+## Architecture Overview
 
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
@@ -24,7 +22,7 @@ A production-shaped core banking ledger system built with Rust, C++, and Python 
        └────────────┘ └──────────┘ └──────────┘
 ```
 
-## Components
+## Core Components
 
 | Component | Language | Purpose |
 |-----------|----------|---------|
