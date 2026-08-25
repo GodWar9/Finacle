@@ -1,0 +1,357 @@
+/*
+  components.css
+  --------------
+  Reusable pieces: stat cards, the "green-bar" ledger table, buttons,
+  the transaction-entry form (including the live balance ticker, which
+  is the one signature visual element of this whole console), the
+  reconciliation exception badges, and the copilot chat panel.
+*/
+
+/* ---- Stat cards (overview row) ---- */
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.stat-card {
+  background: var(--color-paper);
+  color: var(--color-paper-text);
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-line-paper);
+}
+
+.stat-card__label {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-paper-text-muted);
+  margin: 0 0 var(--space-2) 0;
+}
+
+.stat-card__value {
+  font-family: var(--font-mono);
+  font-size: 1.6rem;
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+}
+
+/* ---- Section wrapper (a "page" of the ledger) ---- */
+.ledger-page {
+  background: var(--color-paper);
+  color: var(--color-paper-text);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-line-paper);
+  margin-bottom: var(--space-6);
+  overflow: hidden;
+}
+
+.ledger-page__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--color-line-paper);
+}
+
+.ledger-page__header h2 {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+/* ---- Green-bar table ----
+   Alternating row tint is a direct callback to green-bar computer
+   printout paper — the physical medium bank statements used to be
+   printed on. Every numeric column uses the mono font with
+   tabular-nums so amounts line up. */
+.ledger-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.ledger-table th {
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-paper-text-muted);
+  padding: var(--space-2) var(--space-5);
+  border-bottom: 1px solid var(--color-line-paper);
+}
+
+.ledger-table td {
+  padding: var(--space-2) var(--space-5);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  vertical-align: middle;
+}
+
+.ledger-table tbody tr:nth-child(even) {
+  background: var(--color-paper-dim);
+}
+
+.ledger-table .amount--debit {
+  color: var(--color-debit-red);
+}
+
+.ledger-table .amount--credit {
+  color: var(--color-ledger-green);
+}
+
+.empty-row td {
+  padding: var(--space-5);
+  text-align: center;
+  color: var(--color-paper-text-muted);
+  font-family: var(--font-body);
+}
+
+/* ---- Badges (transaction status, exception type) ---- */
+.badge {
+  display: inline-block;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.badge--posted { background: #E1F0E7; color: var(--color-ledger-green); }
+.badge--reversed { background: #F5E4E2; color: var(--color-debit-red); }
+.badge--amount-mismatch { background: #F5E4E2; color: var(--color-debit-red); }
+.badge--missing-in-ledger { background: #FBEFD8; color: #9A6A15; }
+.badge--missing-in-bank-file { background: #FBEFD8; color: #9A6A15; }
+.badge--status-mismatch { background: #E7E4F4; color: #4C3F9E; }
+.badge--duplicate { background: #E7E4F4; color: #4C3F9E; }
+
+/* ---- Buttons ---- */
+.btn {
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-line-dark);
+  background: transparent;
+  color: var(--color-ink-text);
+  cursor: pointer;
+}
+
+.btn:hover {
+  border-color: var(--color-ledger-green-bright);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--color-ledger-green-bright);
+  outline-offset: 2px;
+}
+
+.btn--primary {
+  background: var(--color-ledger-green);
+  border-color: var(--color-ledger-green);
+  color: #ffffff;
+}
+
+.btn--primary:hover {
+  background: var(--color-ledger-green-bright);
+  border-color: var(--color-ledger-green-bright);
+}
+
+.btn--primary:disabled {
+  background: var(--color-ink-raised);
+  border-color: var(--color-line-dark);
+  color: var(--color-ink-text-muted);
+  cursor: not-allowed;
+}
+
+.btn--ghost {
+  border-color: var(--color-line-paper);
+  color: var(--color-paper-text);
+}
+
+/* ---- Transaction entry form ---- */
+.entry-form {
+  padding: var(--space-5);
+}
+
+.entry-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr auto;
+  gap: var(--space-3);
+  align-items: center;
+  margin-bottom: var(--space-2);
+}
+
+.entry-row select,
+.entry-row input {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  padding: var(--space-2);
+  border: 1px solid var(--color-line-paper);
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+  color: var(--color-paper-text);
+}
+
+.entry-row__remove {
+  background: none;
+  border: none;
+  color: var(--color-debit-red);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+
+/* The balance ticker: styled like the paper tape on an old adding
+   machine — a running total that instantly tells you, in the same
+   font a receipt uses, whether the entry you're building is allowed
+   to post. This is the one place the UI enforces the core invariant
+   from the backend (debits must equal credits) instead of just
+   describing it. */
+.balance-ticker {
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  background: var(--color-ink);
+  color: var(--color-ink-text);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.balance-ticker__totals {
+  display: flex;
+  gap: var(--space-6);
+  font-variant-numeric: tabular-nums;
+}
+
+.balance-ticker__totals small {
+  display: block;
+  color: var(--color-ink-text-muted);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.balance-ticker__verdict {
+  font-size: 0.85rem;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+}
+
+.balance-ticker__verdict--balanced {
+  background: rgba(79, 174, 124, 0.15);
+  color: var(--color-ledger-green-bright);
+}
+
+.balance-ticker__verdict--unbalanced {
+  background: rgba(178, 58, 52, 0.15);
+  color: #E38A85;
+}
+
+/* ---- Reconciliation filter chips ---- */
+.filter-chips {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  padding: 0 var(--space-5) var(--space-4) var(--space-5);
+}
+
+.chip {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-line-paper);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-paper-text-muted);
+  cursor: pointer;
+}
+
+.chip--active {
+  background: var(--color-ledger-green);
+  border-color: var(--color-ledger-green);
+  color: #ffffff;
+}
+
+/* ---- Copilot chat panel ---- */
+.copilot-scope {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5) 0 var(--space-5);
+}
+
+.copilot-log {
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.copilot-message {
+  max-width: 80%;
+}
+
+.copilot-message--user {
+  align-self: flex-end;
+  background: var(--color-ledger-green);
+  color: #ffffff;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: 0.85rem;
+}
+
+.copilot-message--assistant {
+  align-self: flex-start;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.copilot-sources {
+  margin-top: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.copilot-source {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--color-paper-text-muted);
+  border-left: 2px solid var(--color-ledger-green);
+  padding-left: var(--space-2);
+}
+
+.copilot-input-row {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--color-line-paper);
+}
+
+.copilot-input-row input {
+  flex: 1;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  padding: var(--space-3);
+  border: 1px solid var(--color-line-paper);
+  border-radius: var(--radius-sm);
+}
+
+.empty-state {
+  padding: var(--space-6);
+  text-align: center;
+  color: var(--color-paper-text-muted);
+  font-size: 0.85rem;
+}
