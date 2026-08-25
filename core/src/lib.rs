@@ -6,6 +6,7 @@ pub mod ledger {
     pub mod poller;
     pub mod auditor;
     pub mod tracing;
+    pub mod circuit_breaker;
 }
 
 pub mod grpc_server;
