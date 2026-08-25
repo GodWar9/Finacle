@@ -70,6 +70,20 @@ services:
     environment:
       DATABASE_URL: postgresql://ledger_app:dev_only@postgres:5432/ledger
 
+  settlement-processor:
+    build: ./settlement-processor
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ledger-core:
+        condition: service_started
+    profiles: ["batch"]
+    environment:
+      DATABASE_URL: postgresql://ledger_app:dev_only@postgres:5432/ledger
+      RECON_ENGINE_PATH: /app/recon_engine
+      POLL_INTERVAL: "10"
+      RUST_LOG: info
+
   gateway:
     build: ./gateway
     depends_on:
@@ -83,7 +97,7 @@ services:
     environment:
       DATABASE_URL: postgresql://ledger_app:dev_only@postgres:5432/ledger
       REDIS_URL: redis://redis:6379
-      LEDGER_CORE_ADDR: http://ledger-core:50051
+      LEDGER_CORE_ADDR: ledger-core:50051
       RUST_LOG: info
 
   rag-copilot:

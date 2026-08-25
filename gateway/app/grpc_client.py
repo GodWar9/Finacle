@@ -2,7 +2,6 @@ import grpc
 import structlog
 import time
 from typing import Optional
-from uuid import UUID
 
 from app.config import get_settings
 from app.metrics import GRPC_CALLS, GRPC_LATENCY
@@ -10,12 +9,8 @@ from app.metrics import GRPC_CALLS, GRPC_LATENCY
 logger = structlog.get_logger()
 settings = get_settings()
 
-try:
-    import ledger_pb2
-    import ledger_pb2_grpc
-except ImportError:
-    ledger_pb2 = None
-    ledger_pb2_grpc = None
+import ledger_pb2
+import ledger_pb2_grpc
 
 class LedgerGrpcClient:
     def __init__(self, address: str):

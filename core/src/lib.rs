@@ -9,4 +9,8 @@ pub mod ledger {
     pub mod circuit_breaker;
 }
 
+pub mod pb {
+    tonic::include_proto!("ledger.v1");
+}
+
 pub mod grpc_server;

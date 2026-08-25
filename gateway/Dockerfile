@@ -11,6 +11,14 @@ COPY pyproject.toml .
 RUN pip install --no-cache-dir -e .
 
 COPY app ./app
+COPY ../core/proto ./proto
+
+RUN python -m grpc_tools.protoc \
+    --proto_path=proto \
+    --python_out=app \
+    --grpc_python_out=app \
+    --pyi_out=app \
+    proto/ledger.proto
 
 EXPOSE 8000
 

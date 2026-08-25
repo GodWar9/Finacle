@@ -3,7 +3,8 @@ import structlog
 import hmac
 import hashlib
 
-from app.grpc_client import get_grpc_client, ledger_pb2
+from app.grpc_client import get_grpc_client
+import ledger_pb2
 from app.auth import verify_webhook_signature, get_current_merchant
 from uuid import UUID
 

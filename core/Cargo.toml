@@ -2,6 +2,7 @@
 name = "ledger-core"
 version = "0.1.0"
 edition = "2021"
+build = "build.rs"
 
 [dependencies]
 tokio = { version = "1.38", features = ["full"] }
@@ -30,6 +31,9 @@ futures = "0.3"
 chrono = { version = "0.4", features = ["serde"] }
 
 rdkafka = { version = "0.34", features = ["ssl"], optional = true }
+
+[build-dependencies]
+tonic-build = "0.10"
 
 [features]
 default = []

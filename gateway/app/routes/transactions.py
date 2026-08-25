@@ -7,7 +7,8 @@ from app.models.schemas import (
     PostTransactionRequest, PostTransactionResponse,
     GetBalanceResponse, ReverseTransactionRequest
 )
-from app.grpc_client import get_grpc_client, ledger_pb2
+from app.grpc_client import get_grpc_client
+import ledger_pb2
 from app.auth import get_current_merchant
 
 logger = structlog.get_logger()
