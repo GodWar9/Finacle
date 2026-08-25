@@ -3,6 +3,7 @@ use uuid::Uuid;
 use chrono::Utc;
 use tracing::{info, warn, error};
 use sha2::{Digest, Sha256};
+use futures::future::join_all;
 use crate::ledger::domain::{TransactionRequest, LedgerError, PostedTransaction, Direction, LedgerEntry, GetBalanceResponse};
 use crate::ledger::idempotency::{lookup_idempotency, insert_idempotency_record};
 use crate::ledger::outbox::insert_outbox_event;
@@ -304,6 +305,53 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(count, 1);
+    }
+    
+    #[sqlx::test(migrations = "../db/migrations")]
+    async fn test_concurrent_same_account(pool: PgPool) {
+        let account1 = sqlx::query!(
+            "INSERT INTO accounts (account_number, account_type, owner_ref, currency) VALUES ('ACC007', 'ASSET', 'merchant1', 'INR') RETURNING account_id"
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap()
+        .account_id;
+        
+        let account2 = sqlx::query!(
+            "INSERT INTO accounts (account_number, account_type, owner_ref, currency) VALUES ('ACC008', 'LIABILITY', 'merchant2', 'INR') RETURNING account_id"
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap()
+        .account_id;
+        
+        let make_req = |key: &str| TransactionRequest {
+            idempotency_key: key.to_string(),
+            transaction_type: "PAYMENT".to_string(),
+            reference_id: Some(format!("order-{}", key)),
+            entries: vec![
+                LedgerEntry { account_id: account1, direction: Direction::Debit, amount_minor: 1000, currency: "INR".to_string() },
+                LedgerEntry { account_id: account2, direction: Direction::Credit, amount_minor: 1000, currency: "INR".to_string() },
+            ],
+            narrative: None,
+        };
+        
+        let mut handles = vec![];
+        for i in 0..10 {
+            let pool_clone = pool.clone();
+            let req = make_req(&format!("concurrent-{}", i));
+            handles.push(tokio::spawn(async move {
+                post_transaction(&pool_clone, req).await
+            }));
+        }
+        
+        let results: Vec<_> = futures::future::join_all(handles).await;
+        let successful: Vec<_> = results.into_iter().filter_map(|r| r.ok().flatten()).collect();
+        
+        assert_eq!(successful.len(), 10);
+        
+        let balance = get_balance(&pool, account1).await.unwrap();
+        assert_eq!(balance.balance_minor, 10000);
     }
     
     #[sqlx::test(migrations = "../db/migrations")]
