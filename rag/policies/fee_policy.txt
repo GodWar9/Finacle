@@ -1,0 +1,53 @@
+INTERNAL FEE SCHEDULE AND HANDLING POLICY
+Version: 2.1
+Effective Date: 2026-01-15
+Classification: INTERNAL - CONFIDENTIAL
+
+1. FEE TYPES
+1.1 Transaction Fees
+- Domestic payments: 0.5% of transaction amount (min ₹2, max ₹100)
+- International payments: 2.0% of transaction amount (min ₹50, max ₹5000)
+- UPI payments: ₹0 (zero fee for P2P), 0.3% for P2M (max ₹10)
+
+1.2 Settlement Fees
+- T+1 settlement: ₹1 per transaction
+- Instant settlement: ₹5 per transaction
+- Batch settlement: ₹0.50 per transaction
+
+1.3 Chargeback Fees
+- Merchant chargeback: ₹250 per instance
+- Network chargeback fee: As per card network schedule
+
+1.4 Compliance Fees
+- Regulatory reporting: ₹10 per reportable transaction
+- Audit trail access: ₹500 per request
+
+2. FEE CALCULATION RULES
+2.1 Fees calculated on gross transaction amount before any discounts
+2.2 Fees rounded to nearest rupee (0.5 rounds up)
+2.3 GST (18%) applicable on all fees
+2.4 Fees posted as separate transaction entries linked to original transaction
+
+3. FEE POSTING PROCESS
+3.1 Fee transaction created automatically upon successful payment posting
+3.2 Fee entries: Debit merchant account, Credit fee income account
+3.3 Fee transaction references original transaction via reference_id
+3.4 Fee transaction type: "FEE"
+
+4. FEE REVERSAL POLICY
+4.1 Full fee reversal when original transaction reversed within 24 hours
+4.2 Partial fee reversal (50%) when original transaction reversed 24-48 hours
+4.3 No fee reversal after 48 hours unless regulatory requirement
+4.4 Chargeback fees non-reversible once assessed
+
+5. RECONCILIATION OF FEES
+5.1 Fees included in daily reconciliation batch
+5.2 Fee amounts matched against fee schedule
+5.3 Discrepancies > ₹1 flagged as AMOUNT_MISMATCH exception
+5.4 Fee adjustments posted as separate "FEE_ADJUSTMENT" transactions
+
+6. MERCHANT TIER PRICING
+6.1 Standard: Published rates
+6.2 Volume (>100k txn/month): 20% discount on transaction fees
+6.3 Enterprise (>1M txn/month): Custom pricing agreement
+6.4 Non-profit/educational: 50% discount on transaction fees (verification required)

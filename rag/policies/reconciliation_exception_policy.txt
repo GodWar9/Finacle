@@ -1,0 +1,50 @@
+RECONCILIATION EXCEPTION HANDLING POLICY
+Version: 1.0
+Effective Date: 2026-01-01
+
+1. PURPOSE
+This document defines the policy for handling reconciliation exceptions identified during the three-way match process.
+
+2. EXCEPTION TYPES
+- MISSING_IN_LEDGER: Transaction exists in bank file but not in internal ledger
+- MISSING_IN_BANK_FILE: Transaction exists in internal ledger but not in bank settlement
+- AMOUNT_MISMATCH: Amount differs between ledger and bank (beyond tolerance)
+- DUPLICATE: Duplicate transaction detected in bank file
+- STATUS_MISMATCH: Transaction status differs between ledger and bank
+
+3. TOLERANCE THRESHOLDS
+- Amount tolerance: 0 minor units (exact match required for INR)
+- FX transactions: 100 minor units tolerance for rounding differences
+- Fee transactions: Fee amount tolerance as per fee schedule
+
+4. EXCEPTION HANDLING PROCESS
+1. Exception detected and written to reconciliation_exceptions table
+2. Exception categorized by type and severity
+3. Automated resolution attempted for known patterns
+4. Unresolved exceptions queued for manual review
+5. Resolution documented with corrective action
+6. Exception marked as resolved with resolution details
+
+5. ESCALATION MATRIX
+- Level 1 (Operations): Standard exceptions, automated resolution
+- Level 2 (Senior Operations): Complex exceptions, manual investigation
+- Level 3 (Compliance): Regulatory impact exceptions, requires compliance sign-off
+
+6. TIMELINES
+- Detection to queue: Immediate (within reconciliation batch)
+- Level 1 resolution: Within 4 business hours
+- Level 2 resolution: Within 1 business day
+- Level 3 resolution: Within 2 business days
+- Regulatory reporting: As per RBI guidelines (typically T+1 for exceptions)
+
+7. CORRECTIVE ACTIONS
+- Missing in ledger: Investigate webhook failure, re-post transaction
+- Missing in bank: Verify settlement status with bank, may be pending
+- Amount mismatch: Verify fees, FX rates, rounding; post adjustment if needed
+- Duplicate: Identify root cause (retry storm, double webhook), reverse duplicate
+- Status mismatch: Update status based on bank confirmation
+
+8. DOCUMENTATION REQUIREMENTS
+- All exceptions must have resolution documented
+- Root cause analysis required for exceptions > threshold
+- Monthly exception trend report to management

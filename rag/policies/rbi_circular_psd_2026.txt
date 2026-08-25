@@ -1,0 +1,43 @@
+RBI CIRCULAR: PSD/2026-001
+Date: 2026-03-15
+Subject: Guidelines for Payment System Operators on Transaction Reversals and Reconciliation
+
+1. BACKGROUND
+In exercise of powers conferred under Section 18 of the Payment and Settlement Systems Act, 2007, the Reserve Bank of India hereby issues guidelines for payment system operators regarding transaction reversals and reconciliation processes.
+
+2. REVERSAL TIMEFRAMES
+2.1 All payment system operators shall implement automated reversal capabilities for failed transactions within 24 hours (T+1) of the original transaction.
+2.2 For disputed transactions, the reversal window shall not exceed 48 hours (T+2) from settlement.
+2.3 Emergency reversals beyond 48 hours require prior approval from RBI and must be reported within 24 hours of execution.
+
+3. RECONCILIATION REQUIREMENTS
+3.1 Payment system operators shall perform daily reconciliation of all settled transactions against bank settlement files.
+3.2 Three-way reconciliation (Internal Ledger, Payment Gateway Records, Bank Settlement) is mandatory.
+3.3 All exceptions must be resolved within timelines specified in Section 6.
+
+4. IDEMPOTENCY AND RETRY SAFETY
+4.1 All payment APIs must accept and enforce idempotency keys for POST requests.
+4.2 Idempotency keys must be valid for minimum 24 hours.
+4.3 Duplicate requests with same idempotency key but different payload must be rejected with appropriate error code.
+
+5. AUDIT TRAIL REQUIREMENTS
+5.1 All financial transactions must maintain immutable audit trail.
+5.2 Ledger entries must be append-only (Write-Once-Read-Many).
+5.3 Corrections must be implemented as reversing entries, never as modifications.
+
+6. EXCEPTION RESOLUTION TIMELINES
+6.1 Standard exceptions: 4 business hours
+6.2 Complex exceptions: 1 business day
+6.3 Regulatory exceptions: 2 business days
+6.4 Unresolved exceptions beyond timelines must be escalated to RBI.
+
+7. REPORTING REQUIREMENTS
+7.1 Monthly reconciliation exception report to be submitted to RBI by 10th of following month.
+7.2 Quarterly audit of reversal processes and exception handling.
+7.3 Annual certification of compliance by independent auditor.
+
+8. PENALTIES
+Non-compliance with these guidelines may attract penalties under Section 30 of the PSS Act, 2007.
+
+9. EFFECTIVE DATE
+These guidelines are effective from 2026-04-01.

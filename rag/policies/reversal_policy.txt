@@ -1,0 +1,40 @@
+REVERSAL POLICY DOCUMENT
+Version: 1.0
+Effective Date: 2026-01-01
+
+1. PURPOSE
+This document defines the policy for reversing settled transactions in the ledger system.
+
+2. REVERSAL WINDOWS
+- Standard reversals: Allowed within 24 hours of settlement (T+0 to T+1)
+- Extended reversals: Allowed within 48 hours for disputed transactions (T+0 to T+2)
+- Emergency reversals: Allowed up to 72 hours with compliance approval (T+0 to T+3)
+
+3. REVERSAL TYPES
+- Full reversal: Complete reversal of the original transaction amount
+- Partial reversal: Reversal of a portion of the original amount (requires approval)
+- Chargeback reversal: Initiated by card network, follows network rules
+
+4. APPROVAL REQUIREMENTS
+- Standard reversals (< 24h): Automated, no manual approval required
+- Extended reversals (24-48h): Requires operations manager approval
+- Emergency reversals (48-72h): Requires compliance officer approval + audit trail
+
+5. REVERSAL PROCESS
+1. Reversal request received with valid idempotency key
+2. Original transaction validated (exists, not already reversed, within window)
+3. Reversal transaction created with reversed entries (debit/credit swapped)
+4. Original transaction marked as REVERSED with reversal_of reference
+5. Ledger entries posted with same invariant checks
+6. Event published to Kafka for downstream systems
+
+6. COMPLIANCE REQUIREMENTS
+- All reversals must maintain double-entry balance
+- Reversal reason must be recorded in narrative field
+- Audit log must capture: requester, approver, timestamp, original transaction
+- Reversals after 48 hours require regulatory reporting within 24 hours
+
+7. PROHIBITED REVERSALS
+- Reversals beyond 72 hours without regulatory exemption
+- Reversals of already reversed transactions
+- Reversals that would violate account balance constraints (e.g., negative liability)
