@@ -1,3 +1,4 @@
+#[cfg(feature = "kafka")]
 use chrono::Utc;
 #[cfg(feature = "kafka")]
 use rdkafka::producer::{FutureProducer, FutureRecord};
@@ -5,7 +6,9 @@ use rdkafka::producer::{FutureProducer, FutureRecord};
 use rdkafka::ClientConfig;
 #[cfg(feature = "kafka")]
 use sqlx::{PgPool, Postgres, Transaction};
+#[cfg(feature = "kafka")]
 use tracing::{error, info, warn};
+#[cfg(feature = "kafka")]
 use uuid::Uuid;
 
 #[cfg(feature = "kafka")]

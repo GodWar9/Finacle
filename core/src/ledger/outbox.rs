@@ -1,5 +1,4 @@
 use crate::ledger::domain::TransactionRequest;
-use serde_json::Value;
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 

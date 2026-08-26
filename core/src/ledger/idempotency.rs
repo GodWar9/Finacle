@@ -1,7 +1,7 @@
 use crate::ledger::domain::{LedgerError, PostedTransaction};
 use chrono::{Duration, Utc};
 use serde_json::Value;
-use sqlx::{PgPool, Postgres, Row, Transaction};
+use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]

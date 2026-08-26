@@ -1,4 +1,3 @@
-use chrono::Utc;
 use sqlx::PgPool;
 use tracing::{error, info, warn};
 

@@ -4,10 +4,8 @@ use crate::ledger::domain::{
 use crate::ledger::idempotency::{insert_idempotency_record, lookup_idempotency};
 use crate::ledger::outbox::insert_outbox_event;
 use chrono::Utc;
-use futures::future::join_all;
-use sha2::{Digest, Sha256};
 use sqlx::{PgPool, Postgres, Transaction};
-use tracing::{error, info, warn};
+use tracing::{error, info};
 use uuid::Uuid;
 
 pub async fn post_transaction(

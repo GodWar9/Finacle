@@ -1,6 +1,4 @@
-use crate::ledger::domain::{
-    Direction, LedgerEntry, LedgerError, PostedTransaction, TransactionRequest,
-};
+use crate::ledger::domain::{Direction, LedgerEntry, LedgerError, TransactionRequest};
 use crate::ledger::service::{get_balance, post_transaction, reverse_transaction};
 use crate::pb::{ledger_core_server::LedgerCore, *};
 use sqlx::PgPool;
