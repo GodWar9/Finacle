@@ -3,10 +3,12 @@
 use sqlx::PgPool;
 use std::net::SocketAddr;
 use tokio::signal;
-use tracing::{error, info, warn};
+#[cfg(feature = "kafka")]
+use tracing::error;
+use tracing::{info, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use grpc_server::LedgerGrpcServer;
+use ledger_core::grpc_server::LedgerGrpcServer;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -37,7 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let pool_for_poller = pool.clone();
         let kafka_brokers_clone = kafka_brokers.clone();
         tokio::spawn(async move {
-            match ledger::poller::OutboxPoller::new(
+            match ledger_core::ledger::poller::OutboxPoller::new(
                 pool_for_poller,
                 &kafka_brokers_clone,
                 100,
@@ -62,7 +64,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let pool_for_auditor = pool.clone();
     tokio::spawn(async move {
-        ledger::auditor::run_balance_auditor_scheduled(pool_for_auditor, 24).await;
+        ledger_core::ledger::auditor::run_balance_auditor_scheduled(pool_for_auditor, 24).await;
     });
 
     info!("Starting gRPC server on {}", grpc_addr);
