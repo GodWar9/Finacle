@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /build/core
 
 COPY core/Cargo.toml core/Cargo.lock core/build.rs ./
+COPY core/proto ./proto
 COPY core/src ./src
 COPY db ./db
 
