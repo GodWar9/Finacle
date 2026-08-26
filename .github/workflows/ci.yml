@@ -84,6 +84,7 @@ jobs:
           name: sqlx-offline
           path: core/.sqlx/
           retention-days: 7
+          include-hidden-files: true
 
   cpp-tests:
     name: C++ Tests (Reconciliation Engine)
