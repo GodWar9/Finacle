@@ -21,8 +21,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let kafka_brokers =
-        std::env::var("KAFKA_BROKERS").unwrap_or_else(|_| "localhost:9092".to_string());
     let grpc_addr: SocketAddr = std::env::var("GRPC_ADDR")
         .unwrap_or_else(|_| "0.0.0.0:50051".to_string())
         .parse()?;
@@ -37,12 +35,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     #[cfg(feature = "kafka")]
     {
+        let kafka_brokers =
+            std::env::var("KAFKA_BROKERS").unwrap_or_else(|_| "localhost:9092".to_string());
         let pool_for_poller = pool.clone();
-        let kafka_brokers_clone = kafka_brokers.clone();
         tokio::spawn(async move {
             match ledger_core::ledger::poller::OutboxPoller::new(
                 pool_for_poller,
-                &kafka_brokers_clone,
+                &kafka_brokers,
                 100,
                 1000,
             ) {
