@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use thiserror::Error;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -57,25 +57,25 @@ pub struct ReverseTransactionRequest {
 pub enum LedgerError {
     #[error("unbalanced transaction: debit {debit} != credit {credit}")]
     Unbalanced { debit: i64, credit: i64 },
-    
+
     #[error("account {0} not found or not ACTIVE")]
     InvalidAccount(Uuid),
-    
+
     #[error("idempotency key {0} already used with a different payload")]
     IdempotencyConflict(String),
-    
+
     #[error("transaction {0} not found")]
     TransactionNotFound(Uuid),
-    
+
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
-    
+
     #[error("kafka error: {0}")]
     Kafka(String),
-    
+
     #[error("serialization error: {0}")]
     Serialization(String),
-    
+
     #[error("internal error: {0}")]
     Internal(String),
 }
@@ -88,19 +88,26 @@ impl TransactionRequest {
         hasher.update(canonical.as_bytes());
         hex::encode(hasher.finalize())
     }
-    
+
     pub fn validate_balanced(&self) -> Result<(), LedgerError> {
-        let debit_total: i64 = self.entries.iter()
+        let debit_total: i64 = self
+            .entries
+            .iter()
             .filter(|e| e.direction == Direction::Debit)
             .map(|e| e.amount_minor)
             .sum();
-        let credit_total: i64 = self.entries.iter()
+        let credit_total: i64 = self
+            .entries
+            .iter()
             .filter(|e| e.direction == Direction::Credit)
             .map(|e| e.amount_minor)
             .sum();
-        
+
         if debit_total != credit_total {
-            return Err(LedgerError::Unbalanced { debit: debit_total, credit: credit_total });
+            return Err(LedgerError::Unbalanced {
+                debit: debit_total,
+                credit: credit_total,
+            });
         }
         Ok(())
     }
@@ -109,7 +116,7 @@ impl TransactionRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_balanced_transaction() {
         let req = TransactionRequest {
@@ -134,7 +141,7 @@ mod tests {
         };
         assert!(req.validate_balanced().is_ok());
     }
-    
+
     #[test]
     fn test_unbalanced_transaction() {
         let req = TransactionRequest {
@@ -159,21 +166,19 @@ mod tests {
         };
         assert!(req.validate_balanced().is_err());
     }
-    
+
     #[test]
     fn test_request_hash_deterministic() {
         let req = TransactionRequest {
             idempotency_key: "test-key".to_string(),
             transaction_type: "PAYMENT".to_string(),
             reference_id: Some("ref-1".to_string()),
-            entries: vec![
-                LedgerEntry {
-                    account_id: Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap(),
-                    direction: Direction::Debit,
-                    amount_minor: 10000,
-                    currency: "INR".to_string(),
-                },
-            ],
+            entries: vec![LedgerEntry {
+                account_id: Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap(),
+                direction: Direction::Debit,
+                amount_minor: 10000,
+                currency: "INR".to_string(),
+            }],
             narrative: None,
         };
         let hash1 = req.request_hash();

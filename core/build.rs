@@ -4,7 +4,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build_client(true)
         .out_dir("src/pb")
         .compile(&["proto/ledger.proto"], &["proto"])?;
-    
+
     println!("cargo:rerun-if-changed=proto/ledger.proto");
     Ok(())
 }

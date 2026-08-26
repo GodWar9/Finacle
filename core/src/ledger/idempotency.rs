@@ -1,8 +1,8 @@
-use sqlx::{PgPool, Postgres, Transaction, Row};
-use uuid::Uuid;
-use chrono::{Utc, Duration};
-use serde_json::Value;
 use crate::ledger::domain::{LedgerError, PostedTransaction};
+use chrono::{Duration, Utc};
+use serde_json::Value;
+use sqlx::{PgPool, Postgres, Row, Transaction};
+use uuid::Uuid;
 
 #[derive(Debug, Clone)]
 pub struct IdempotencyRecord {
@@ -29,7 +29,7 @@ pub async fn lookup_idempotency(
     )
     .fetch_optional(pool)
     .await?;
-    
+
     Ok(row.map(|r| IdempotencyRecord {
         idempotency_key: r.idempotency_key,
         request_hash: r.request_hash,
@@ -51,10 +51,10 @@ pub async fn insert_idempotency_record(
         status: "POSTED".to_string(),
         posted_at_unix_ms: Utc::now().timestamp_millis(),
     };
-    
+
     let response_json = serde_json::to_value(&response).unwrap();
     let expires_at = Utc::now() + Duration::hours(24);
-    
+
     sqlx::query!(
         r#"
         INSERT INTO idempotency_records (idempotency_key, request_hash, response_body, status_code, expires_at)
@@ -69,7 +69,7 @@ pub async fn insert_idempotency_record(
     )
     .execute(&mut *tx)
     .await?;
-    
+
     Ok(())
 }
 
@@ -77,7 +77,7 @@ pub async fn insert_idempotency_record(
 mod tests {
     use super::*;
     use sqlx::PgPool;
-    
+
     #[sqlx::test(migrations = "../db/migrations")]
     async fn test_idempotency_lookup(pool: PgPool) {
         let record = lookup_idempotency(&pool, "non-existent").await.unwrap();

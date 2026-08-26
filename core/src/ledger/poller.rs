@@ -1,12 +1,12 @@
-#[cfg(feature = "kafka")]
-use sqlx::{PgPool, Postgres, Transaction};
+use chrono::Utc;
 #[cfg(feature = "kafka")]
 use rdkafka::producer::{FutureProducer, FutureRecord};
 #[cfg(feature = "kafka")]
 use rdkafka::ClientConfig;
+#[cfg(feature = "kafka")]
+use sqlx::{PgPool, Postgres, Transaction};
+use tracing::{error, info, warn};
 use uuid::Uuid;
-use tracing::{info, warn, error};
-use chrono::Utc;
 
 #[cfg(feature = "kafka")]
 pub struct OutboxPoller {
@@ -18,12 +18,17 @@ pub struct OutboxPoller {
 
 #[cfg(feature = "kafka")]
 impl OutboxPoller {
-    pub fn new(pool: PgPool, kafka_brokers: &str, batch_size: usize, poll_interval_ms: u64) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(
+        pool: PgPool,
+        kafka_brokers: &str,
+        batch_size: usize,
+        poll_interval_ms: u64,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         let producer: FutureProducer = ClientConfig::new()
             .set("bootstrap.servers", kafka_brokers)
             .set("message.timeout.ms", "5000")
             .create()?;
-        
+
         Ok(Self {
             pool,
             producer,
@@ -31,7 +36,7 @@ impl OutboxPoller {
             poll_interval_ms,
         })
     }
-    
+
     pub async fn run(&self) -> Result<(), Box<dyn std::error::Error>> {
         info!("Starting outbox poller");
         loop {
@@ -41,10 +46,10 @@ impl OutboxPoller {
             tokio::time::sleep(tokio::time::Duration::from_millis(self.poll_interval_ms)).await;
         }
     }
-    
+
     async fn poll_once(&self) -> Result<usize, Box<dyn std::error::Error>> {
         let mut tx: Transaction<'_, Postgres> = self.pool.begin().await?;
-        
+
         let rows = sqlx::query!(
             r#"
             SELECT event_id, topic, payload_json
@@ -58,15 +63,19 @@ impl OutboxPoller {
         )
         .fetch_all(&mut *tx)
         .await?;
-        
+
         let count = rows.len();
-        
+
         for row in rows {
             let record = FutureRecord::to(&row.topic)
                 .payload(&row.payload_json.to_string())
                 .key(&row.event_id.to_string());
-            
-            match self.producer.send(record, tokio::time::Duration::from_secs(5)).await {
+
+            match self
+                .producer
+                .send(record, tokio::time::Duration::from_secs(5))
+                .await
+            {
                 Ok(_) => {
                     sqlx::query!(
                         "UPDATE outbox_events SET published = true WHERE event_id = $1",
@@ -80,13 +89,13 @@ impl OutboxPoller {
                 }
             }
         }
-        
+
         tx.commit().await?;
-        
+
         if count > 0 {
             info!("Published {} outbox events to Kafka", count);
         }
-        
+
         Ok(count)
     }
 }
@@ -96,7 +105,12 @@ pub struct OutboxPoller;
 
 #[cfg(not(feature = "kafka"))]
 impl OutboxPoller {
-    pub fn new(_pool: sqlx::PgPool, _kafka_brokers: &str, _batch_size: usize, _poll_interval_ms: u64) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(
+        _pool: sqlx::PgPool,
+        _kafka_brokers: &str,
+        _batch_size: usize,
+        _poll_interval_ms: u64,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         Err("Kafka feature not enabled".into())
     }
 }
@@ -104,7 +118,7 @@ impl OutboxPoller {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_poller_creation() {
         // This would need a real Kafka instance to test

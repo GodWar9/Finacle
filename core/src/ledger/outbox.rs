@@ -1,7 +1,7 @@
+use crate::ledger::domain::TransactionRequest;
+use serde_json::Value;
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
-use serde_json::Value;
-use crate::ledger::domain::TransactionRequest;
 
 pub async fn insert_outbox_event(
     tx: &mut Transaction<'_, Postgres>,
@@ -24,7 +24,7 @@ pub async fn insert_outbox_event(
         "narrative": req.narrative,
         "posted_at": chrono::Utc::now().to_rfc3339(),
     });
-    
+
     sqlx::query!(
         r#"
         INSERT INTO outbox_events (topic, payload_json)
@@ -35,7 +35,7 @@ pub async fn insert_outbox_event(
     )
     .execute(&mut *tx)
     .await?;
-    
+
     Ok(())
 }
 
@@ -52,7 +52,7 @@ pub async fn insert_reversal_outbox_event(
         "reason": reason,
         "posted_at": chrono::Utc::now().to_rfc3339(),
     });
-    
+
     sqlx::query!(
         r#"
         INSERT INTO outbox_events (topic, payload_json)
@@ -63,6 +63,6 @@ pub async fn insert_reversal_outbox_event(
     )
     .execute(&mut *tx)
     .await?;
-    
+
     Ok(())
 }

@@ -1,8 +1,10 @@
-use sqlx::PgPool;
-use tracing::{info, warn, error};
 use chrono::Utc;
+use sqlx::PgPool;
+use tracing::{error, info, warn};
 
-pub async fn run_balance_auditor(pool: &PgPool) -> Result<Vec<(uuid::Uuid, i64, i64)>, crate::ledger::domain::LedgerError> {
+pub async fn run_balance_auditor(
+    pool: &PgPool,
+) -> Result<Vec<(uuid::Uuid, i64, i64)>, crate::ledger::domain::LedgerError> {
     let mismatches = sqlx::query!(
         r#"
         SELECT a.account_id, 
@@ -18,34 +20,46 @@ pub async fn run_balance_auditor(pool: &PgPool) -> Result<Vec<(uuid::Uuid, i64, 
     )
     .fetch_all(pool)
     .await?;
-    
-    let results: Vec<(uuid::Uuid, i64, i64)> = mismatches.into_iter()
-        .map(|r| (r.account_id, r.derived_balance, r.materialized_balance.unwrap_or(0)))
+
+    let results: Vec<(uuid::Uuid, i64, i64)> = mismatches
+        .into_iter()
+        .map(|r| {
+            (
+                r.account_id,
+                r.derived_balance,
+                r.materialized_balance.unwrap_or(0),
+            )
+        })
         .collect();
-    
+
     for (account_id, derived, materialized) in &results {
-        error!("BALANCE MISMATCH for account {}: derived={}, materialized={}", account_id, derived, materialized);
+        error!(
+            "BALANCE MISMATCH for account {}: derived={}, materialized={}",
+            account_id, derived, materialized
+        );
     }
-    
+
     if results.is_empty() {
-        info!("Balance auditor: All {} accounts balanced", 
+        info!(
+            "Balance auditor: All {} accounts balanced",
             sqlx::query_scalar!("SELECT COUNT(*) FROM accounts WHERE status = 'ACTIVE'")
-            .fetch_one(pool)
-            .await
-            .unwrap_or(0));
+                .fetch_one(pool)
+                .await
+                .unwrap_or(0)
+        );
     } else {
         warn!("Balance auditor: Found {} mismatches", results.len());
     }
-    
+
     Ok(results)
 }
 
 pub async fn run_balance_auditor_scheduled(pool: PgPool, interval_hours: u64) {
     let mut interval = tokio::time::interval(tokio::time::Duration::from_hours(interval_hours));
-    
+
     loop {
         interval.tick().await;
-        
+
         if let Err(e) = run_balance_auditor(&pool).await {
             error!("Balance auditor failed: {}", e);
         }

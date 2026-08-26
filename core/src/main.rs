@@ -1,7 +1,7 @@
-use std::net::SocketAddr;
 use sqlx::PgPool;
+use std::net::SocketAddr;
 use tokio::signal;
-use tracing::{info, error, warn};
+use tracing::{error, info, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use grpc_server::LedgerGrpcServer;
@@ -14,23 +14,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ))
         .with(tracing_subscriber::fmt::layer())
         .init();
-    
-    let database_url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set");
-    let kafka_brokers = std::env::var("KAFKA_BROKERS")
-        .unwrap_or_else(|_| "localhost:9092".to_string());
+
+    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let kafka_brokers =
+        std::env::var("KAFKA_BROKERS").unwrap_or_else(|_| "localhost:9092".to_string());
     let grpc_addr: SocketAddr = std::env::var("GRPC_ADDR")
         .unwrap_or_else(|_| "0.0.0.0:50051".to_string())
         .parse()?;
-    
+
     let pool = PgPool::connect(&database_url).await?;
     info!("Connected to database");
-    
+
     sqlx::migrate!("../db/migrations").run(&pool).await?;
     info!("Migrations applied");
-    
+
     let grpc_server = LedgerGrpcServer::new(pool.clone());
-    
+
     #[cfg(feature = "kafka")]
     {
         let pool_for_poller = pool.clone();
@@ -53,19 +52,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         });
     }
-    
+
     #[cfg(not(feature = "kafka"))]
     {
         warn!("Kafka feature not enabled - outbox poller disabled");
     }
-    
+
     let pool_for_auditor = pool.clone();
     tokio::spawn(async move {
         ledger::auditor::run_balance_auditor_scheduled(pool_for_auditor, 24).await;
     });
-    
+
     info!("Starting gRPC server on {}", grpc_addr);
-    
+
     tonic::transport::Server::builder()
         .add_service(grpc_server.into_server())
         .serve_with_shutdown(grpc_addr, async {
@@ -73,6 +72,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             info!("Shutdown signal received");
         })
         .await?;
-    
+
     Ok(())
 }
