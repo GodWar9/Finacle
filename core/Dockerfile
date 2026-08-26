@@ -1,8 +1,12 @@
 FROM rust:1-bookworm AS builder
 
+RUN apt-get update && apt-get install -y \
+    protobuf-compiler \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /build/core
 
-COPY core/Cargo.toml core/Cargo.lock ./
+COPY core/Cargo.toml core/Cargo.lock core/build.rs ./
 COPY core/src ./src
 COPY db ./db
 
