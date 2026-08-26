@@ -1,3 +1,7 @@
+// tonic-generated service methods return Result<_, tonic::Status>, whose
+// large size trips this lint; boxing Status is unidiomatic for tonic apps.
+#![allow(clippy::result_large_err)]
+
 pub mod ledger {
     pub mod auditor;
     pub mod circuit_breaker;

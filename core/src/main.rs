@@ -1,3 +1,5 @@
+#![allow(clippy::result_large_err)]
+
 use sqlx::PgPool;
 use std::net::SocketAddr;
 use tokio::signal;
