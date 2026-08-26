@@ -235,8 +235,8 @@ pub async fn run_balance_auditor(pool: &PgPool) -> Result<Vec<(Uuid, i64, i64)>,
     let mismatches = sqlx::query!(
         r#"
         SELECT a.account_id, 
-               COALESCE(SUM(CASE WHEN le.direction = 'DEBIT' THEN le.amount_minor ELSE -le.amount_minor END), 0)::bigint as derived_balance,
-               COALESCE(ab.balance_minor, 0)::bigint as materialized_balance
+               COALESCE(SUM(CASE WHEN le.direction = 'DEBIT' THEN le.amount_minor ELSE -le.amount_minor END), 0)::bigint as "derived_balance!",
+               COALESCE(ab.balance_minor, 0)::bigint as "materialized_balance!"
         FROM accounts a
         LEFT JOIN ledger_entries le ON le.account_id = a.account_id
         LEFT JOIN account_balances ab ON ab.account_id = a.account_id
