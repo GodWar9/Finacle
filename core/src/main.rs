@@ -9,6 +9,7 @@ use tracing::{info, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use ledger_core::grpc_server::LedgerGrpcServer;
+use ledger_core::pb::ledger_core_server::LedgerCoreServer;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -70,7 +71,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Starting gRPC server on {}", grpc_addr);
 
     tonic::transport::Server::builder()
-        .add_service(grpc_server.into_server())
+        .add_service(LedgerCoreServer::new(grpc_server))
         .serve_with_shutdown(grpc_addr, async {
             signal::ctrl_c().await.expect("failed to listen for ctrl-c");
             info!("Shutdown signal received");
