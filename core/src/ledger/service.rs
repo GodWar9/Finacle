@@ -414,7 +414,7 @@ mod tests {
         let results: Vec<_> = futures::future::join_all(handles).await;
         let successful: Vec<_> = results
             .into_iter()
-            .filter_map(|r| r.ok().flatten())
+            .filter_map(|r| r.ok().and_then(|inner| inner.ok()))
             .collect();
 
         assert_eq!(successful.len(), 10);
