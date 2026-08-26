@@ -43,4 +43,4 @@ RUN python -m grpc_tools.protoc \
 
 ENV RECON_ENGINE_PATH=/app/recon_engine
 
-CMD ["python", "-m", "app.settlement_processor"]
+CMD ["python", "-m", "gateway.app.settlement_processor"]
