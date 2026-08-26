@@ -6,9 +6,17 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(LIBPQXX REQUIRED IMPORTED_TARGET libpqxx)
-pkg_check_modules(LIBPQ REQUIRED IMPORTED_TARGET libpq)
+include(FetchContent)
+
+# Ubuntu noble's libpqxx package ships headers and library built with
+# mismatched exception ABI; build a known-good version from source instead.
+FetchContent_Declare(
+    libpqxx
+    GIT_REPOSITORY https://github.com/jtv/libpqxx.git
+    GIT_TAG 7.9.2
+    GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(libpqxx)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
@@ -39,7 +47,7 @@ add_executable(recon_engine
     src/db_writer.cpp
 )
 
-target_link_libraries(recon_engine PRIVATE PkgConfig::LIBPQXX PkgConfig::LIBPQ)
+target_link_libraries(recon_engine PRIVATE libpqxx::pqxx)
 if(ENABLE_OPENMP)
     target_link_libraries(recon_engine PRIVATE OpenMP::OpenMP_CXX)
 endif()
@@ -58,7 +66,7 @@ if(BUILD_TESTS)
         src/db_writer.cpp
     )
 
-    target_link_libraries(recon_tests PRIVATE GTest::GTest GTest::Main PkgConfig::LIBPQXX PkgConfig::LIBPQ)
+    target_link_libraries(recon_tests PRIVATE GTest::GTest GTest::Main libpqxx::pqxx)
     if(ENABLE_OPENMP)
         target_link_libraries(recon_tests PRIVATE OpenMP::OpenMP_CXX)
     endif()
