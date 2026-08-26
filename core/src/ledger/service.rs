@@ -89,7 +89,7 @@ async fn insert_transaction_header(
         req.reference_id,
         req.narrative
     )
-    .execute(&mut *tx)
+    .execute(&mut **tx)
     .await?;
     Ok(txn_id)
 }
@@ -115,7 +115,7 @@ async fn insert_ledger_entry(
         entry.amount_minor,
         entry.currency
     )
-    .execute(&mut *tx)
+    .execute(&mut **tx)
     .await?;
     Ok(())
 }
@@ -236,7 +236,7 @@ pub async fn run_balance_auditor(pool: &PgPool) -> Result<Vec<(Uuid, i64, i64)>,
         r#"
         SELECT a.account_id, 
                COALESCE(SUM(CASE WHEN le.direction = 'DEBIT' THEN le.amount_minor ELSE -le.amount_minor END), 0)::bigint as derived_balance,
-               ab.balance_minor as materialized_balance
+               COALESCE(ab.balance_minor, 0)::bigint as materialized_balance
         FROM accounts a
         LEFT JOIN ledger_entries le ON le.account_id = a.account_id
         LEFT JOIN account_balances ab ON ab.account_id = a.account_id
@@ -250,13 +250,7 @@ pub async fn run_balance_auditor(pool: &PgPool) -> Result<Vec<(Uuid, i64, i64)>,
 
     let results: Vec<(Uuid, i64, i64)> = mismatches
         .into_iter()
-        .map(|r| {
-            (
-                r.account_id,
-                r.derived_balance,
-                r.materialized_balance.unwrap_or(0),
-            )
-        })
+        .map(|r| (r.account_id, r.derived_balance, r.materialized_balance))
         .collect();
 
     for (account_id, derived, materialized) in &results {
@@ -363,7 +357,7 @@ mod tests {
         assert_eq!(result1.transaction_id, result2.transaction_id);
 
         let count: i64 = sqlx::query_scalar!(
-            "SELECT COUNT(*) FROM transactions WHERE idempotency_key = 'idem-2'"
+            r#"SELECT COUNT(*)::bigint as "count!" FROM transactions WHERE idempotency_key = 'idem-2'"#
         )
         .fetch_one(&pool)
         .await

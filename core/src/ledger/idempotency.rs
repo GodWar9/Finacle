@@ -67,7 +67,7 @@ pub async fn insert_idempotency_record(
         201,
         expires_at
     )
-    .execute(&mut *tx)
+    .execute(&mut **tx)
     .await?;
 
     Ok(())

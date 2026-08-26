@@ -33,7 +33,7 @@ pub async fn insert_outbox_event(
         "ledger.transaction.posted",
         payload
     )
-    .execute(&mut *tx)
+    .execute(&mut **tx)
     .await?;
 
     Ok(())
@@ -61,7 +61,7 @@ pub async fn insert_reversal_outbox_event(
         "ledger.transaction.reversed",
         payload
     )
-    .execute(&mut *tx)
+    .execute(&mut **tx)
     .await?;
 
     Ok(())

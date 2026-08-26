@@ -9,7 +9,7 @@ pub async fn run_balance_auditor(
         r#"
         SELECT a.account_id, 
                COALESCE(SUM(CASE WHEN le.direction = 'DEBIT' THEN le.amount_minor ELSE -le.amount_minor END), 0)::bigint as derived_balance,
-               ab.balance_minor as materialized_balance
+               COALESCE(ab.balance_minor, 0)::bigint as materialized_balance
         FROM accounts a
         LEFT JOIN ledger_entries le ON le.account_id = a.account_id
         LEFT JOIN account_balances ab ON ab.account_id = a.account_id
@@ -23,13 +23,7 @@ pub async fn run_balance_auditor(
 
     let results: Vec<(uuid::Uuid, i64, i64)> = mismatches
         .into_iter()
-        .map(|r| {
-            (
-                r.account_id,
-                r.derived_balance,
-                r.materialized_balance.unwrap_or(0),
-            )
-        })
+        .map(|r| (r.account_id, r.derived_balance, r.materialized_balance))
         .collect();
 
     for (account_id, derived, materialized) in &results {
@@ -42,10 +36,12 @@ pub async fn run_balance_auditor(
     if results.is_empty() {
         info!(
             "Balance auditor: All {} accounts balanced",
-            sqlx::query_scalar!("SELECT COUNT(*) FROM accounts WHERE status = 'ACTIVE'")
-                .fetch_one(pool)
-                .await
-                .unwrap_or(0)
+            sqlx::query_scalar!(
+                r#"SELECT COUNT(*)::bigint as "count!" FROM accounts WHERE status = 'ACTIVE'"#
+            )
+            .fetch_one(pool)
+            .await
+            .unwrap_or(0)
         );
     } else {
         warn!("Balance auditor: Found {} mismatches", results.len());
