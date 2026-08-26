@@ -13,8 +13,9 @@ TEST(FileParserTest, ParseAmountMinor) {
 
 TEST(FileParserTest, ParseLineValid) {
     recon::FixedWidthLayout layout;
-    std::string line = "ORDER_12345678901234  0000000010000INR SUCCESS  ";
-    
+    // Layout: ref [0,20) | amount [20,33) | currency [33,36) | status [36,43)
+    std::string line = "ORDER_123456789012340000000010000INRSUCCESS";
+
     auto record = recon::parse_line(line, layout, recon::Source::BANK_FILE);
     ASSERT_TRUE(record.has_value());
     EXPECT_EQ(record->external_reference, "ORDER_12345678901234");
@@ -25,16 +26,16 @@ TEST(FileParserTest, ParseLineValid) {
 
 TEST(FileParserTest, ParseLineInvalidReference) {
     recon::FixedWidthLayout layout;
-    std::string line = "                    0000000010000INR SUCCESS  ";
-    
+    std::string line = "                    0000000010000INRSUCCESS";
+
     auto record = recon::parse_line(line, layout, recon::Source::BANK_FILE);
     EXPECT_FALSE(record.has_value());
 }
 
 TEST(FileParserTest, ParseLineInvalidAmount) {
     recon::FixedWidthLayout layout;
-    std::string line = "ORDER_12345678901234  0000000000000INR SUCCESS  ";
-    
+    std::string line = "ORDER_12345678901234000000000000INRSUCCESS";
+
     auto record = recon::parse_line(line, layout, recon::Source::BANK_FILE);
     EXPECT_FALSE(record.has_value());
 }
@@ -43,21 +44,21 @@ TEST(FileParserTest, ParseFile) {
     std::string test_file = "/tmp/test_settlement.txt";
     {
         std::ofstream f(test_file);
-        f << "ORDER_001              0000000010000INR SUCCESS  \n";
-        f << "ORDER_002              0000000020000INR SUCCESS  \n";
-        f << "ORDER_003              0000000030000INR FAILED   \n";
+        f << "ORDER_001           0000000010000INRSUCCESS\n";
+        f << "ORDER_002           0000000020000INRSUCCESS\n";
+        f << "ORDER_003           0000000030000INRFAILED \n";
         f << "\n";
     }
-    
+
     recon::FixedWidthLayout layout;
     auto records = recon::parse_file(test_file, layout, recon::Source::BANK_FILE);
-    
+
     EXPECT_EQ(records.size(), 3);
     EXPECT_EQ(records[0].external_reference, "ORDER_001");
     EXPECT_EQ(records[0].amount_minor, 10000);
     EXPECT_EQ(records[1].external_reference, "ORDER_002");
     EXPECT_EQ(records[2].external_reference, "ORDER_003");
     EXPECT_EQ(records[2].status, "FAILED");
-    
+
     std::remove(test_file.c_str());
 }
