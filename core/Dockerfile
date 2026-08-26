@@ -9,7 +9,7 @@ WORKDIR /build/core
 COPY core/Cargo.toml core/Cargo.lock core/build.rs ./
 COPY core/proto ./proto
 COPY core/src ./src
-COPY db ./db
+COPY db /build/db/
 
 COPY core/.sqlx ./.sqlx
 ENV SQLX_OFFLINE=true
