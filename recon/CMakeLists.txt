@@ -8,6 +8,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBPQXX REQUIRED IMPORTED_TARGET libpqxx)
+pkg_check_modules(LIBPQ REQUIRED IMPORTED_TARGET libpq)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
@@ -38,7 +39,7 @@ add_executable(recon_engine
     src/db_writer.cpp
 )
 
-target_link_libraries(recon_engine PRIVATE PkgConfig::LIBPQXX)
+target_link_libraries(recon_engine PRIVATE PkgConfig::LIBPQXX PkgConfig::LIBPQ)
 if(ENABLE_OPENMP)
     target_link_libraries(recon_engine PRIVATE OpenMP::OpenMP_CXX)
 endif()
@@ -57,7 +58,7 @@ if(BUILD_TESTS)
         src/db_writer.cpp
     )
 
-    target_link_libraries(recon_tests PRIVATE GTest::GTest GTest::Main PkgConfig::LIBPQXX)
+    target_link_libraries(recon_tests PRIVATE GTest::GTest GTest::Main PkgConfig::LIBPQXX PkgConfig::LIBPQ)
     if(ENABLE_OPENMP)
         target_link_libraries(recon_tests PRIVATE OpenMP::OpenMP_CXX)
     endif()
