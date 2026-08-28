@@ -1,7 +1,9 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+
     database_url: str = "postgresql://ledger_app:dev_only@localhost:5432/ledger"
     kafka_brokers: str = "localhost:9092"
     openai_api_key: str = ""
@@ -11,10 +13,6 @@ class Settings(BaseSettings):
     rag_top_k: int = 8
     chunk_size: int = 400
     chunk_overlap: int = 50
-    
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
 
 @lru_cache()
 def get_settings() -> Settings:
