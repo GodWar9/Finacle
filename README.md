@@ -75,16 +75,35 @@ Migrations run automatically on container startup via `docker-entrypoint-initdb.
 
 ### Running Tests
 ```bash
-# Rust tests
-cd core && cargo test
+# Python
+cd gateway && pip install -e ".[dev]" && pytest
+cd rag && pip install -e ".[dev]" && pytest
 
-# C++ tests
+# C++ (requires cmake + libpqxx)
 cd recon && cmake -B build -DBUILD_TESTS=ON && cmake --build build && ./build/recon_tests
 
-# Python tests
-cd gateway && pytest
-cd rag && pytest
+# Rust (requires protoc + a reachable Postgres, see below)
+cd core && cargo test
 ```
+
+### Local leads on the Rust core
+
+The ledger-core uses `sqlx` **compile-time checked queries** and generated gRPC stubs, so it needs two tools available at build time:
+
+1. **`protoc`** (protobuf compiler) — used by `build.rs`/`tonic-build` to generate gRPC stubs. Install `protobuf-compiler` or point the `PROTOC` env var at a `protoc` binary.
+2. **A reachable PostgreSQL** — before the first build run:
+
+```bash
+cd core
+# start Postgres (e.g. via `docker compose up -d postgres`), then prepare the offline query cache:
+cargo install sqlx-cli --no-default-features --features postgres
+sqlx database create
+sqlx migrate run --source ../db/migrations
+cargo sqlx prepare -- --all-targets   # writes core/.sqlx, used by CI/offline builds
+cargo build
+```
+
+Then normal `cargo test` / `cargo build` work (`.sqlx` is gitignored; CI regenerates it via the artifact pipeline).
 
 ## Key Design Decisions
 
