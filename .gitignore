@@ -31,3 +31,6 @@ venv/
 .idea/
 .vscode/
 *.swp
+
+# Self-referential nested clone (stray artifact)
+/Finacle/
