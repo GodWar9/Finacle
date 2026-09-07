@@ -1,8 +1,9 @@
-FROM ubuntu:22.04 as builder
+FROM ubuntu:22.04 AS builder
 
 RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
+    git \
     libpqxx-dev \
     libgtest-dev \
     && rm -rf /var/lib/apt/lists/*
