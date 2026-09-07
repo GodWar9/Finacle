@@ -120,10 +120,19 @@ impl OutboxPoller {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::OutboxPoller;
 
-    #[test]
-    fn test_poller_creation() {
-        // This would need a real Kafka instance to test
+    #[cfg(not(feature = "kafka"))]
+    #[tokio::test]
+    async fn test_poller_stub_rejects_without_kafka() {
+        let pool = sqlx::PgPool::connect_lazy("postgresql://localhost:5432/ledger")
+            .expect("lazy pool creation should not require a connection");
+        match OutboxPoller::new(pool, "localhost:9092", 10, 1000) {
+            Ok(_) => panic!("non-kafka stub should fail"),
+            Err(e) => assert!(
+                e.to_string().contains("Kafka feature not enabled"),
+                "unexpected error: {e}"
+            ),
+        }
     }
 }
