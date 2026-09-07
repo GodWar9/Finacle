@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COUNT(*)::bigint as \"count!\" FROM accounts WHERE status = 'ACTIVE'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "8f64c59c494d0f19c27fd8b5176dc8bba7151267f642529881f59fce3b7c3fd5"
+}

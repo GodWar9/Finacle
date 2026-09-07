@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO accounts (account_number, account_type, owner_ref, currency) VALUES ('ACC001', 'ASSET', 'merchant1', 'INR') RETURNING account_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "account_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "978966684ead508135113aba2d289474f75896b204c7eba0ff94e0e95e456f46"
+}

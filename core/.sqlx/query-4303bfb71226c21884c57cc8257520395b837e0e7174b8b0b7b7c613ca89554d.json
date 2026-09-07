@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT account_id, direction, amount_minor, currency FROM ledger_entries WHERE transaction_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "account_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "direction",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "amount_minor",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "currency",
+        "type_info": "Bpchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "4303bfb71226c21884c57cc8257520395b837e0e7174b8b0b7b7c613ca89554d"
+}

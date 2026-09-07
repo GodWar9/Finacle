@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT transaction_id, transaction_type, reference_id, narrative, status FROM transactions WHERE transaction_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "transaction_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "transaction_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "reference_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "narrative",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "status",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "0c0ec1c742f223e268131f61de48bc258fbb4191c57c56ed1112ec2ec33b55cb"
+}

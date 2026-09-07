@@ -1,4 +1,4 @@
-# Rust
+# Rust build output (source is committed; see .sqlx/ below)
 target/
 **/*.rs.bk
 
@@ -19,9 +19,6 @@ venv/
 *_pb2.py
 *_pb2.pyi
 *_pb2_grpc.py
-
-# sqlx offline cache (generated in CI, passed via artifact)
-.sqlx/
 
 # Environment
 .env

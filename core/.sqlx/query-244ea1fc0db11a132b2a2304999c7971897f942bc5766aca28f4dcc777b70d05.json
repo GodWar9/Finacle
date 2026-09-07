@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT currency FROM accounts WHERE account_id = $1 AND status = 'ACTIVE'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "currency",
+        "type_info": "Bpchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "244ea1fc0db11a132b2a2304999c7971897f942bc5766aca28f4dcc777b70d05"
+}
