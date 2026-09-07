@@ -71,7 +71,10 @@ curl -X POST http://localhost:8000/api/v1/transactions \
 - Python 3.11+ (for gateway/rag development)
 
 ### Database Migrations
-Migrations run automatically on container startup via `docker-entrypoint-initdb.d`
+Migrations are owned and applied by the **ledger-core** service at startup via
+`sqlx::migrate!` (from `db/migrations`). They run before the gRPC server starts
+and are tracked in the `_sqlx_migrations` table, so they are idempotent.
+Standalone (out-of-container) use can run them with `sqlx migrate run`.
 
 ### Running Tests
 ```bash
