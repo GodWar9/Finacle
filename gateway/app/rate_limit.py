@@ -7,10 +7,18 @@ from app.metrics import RATE_LIMIT_EXCEEDED
 settings = get_settings()
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app, redis_client: redis.Redis):
+    def __init__(self, app, redis_client: redis.Redis = None):
         super().__init__(app)
-        self.redis = redis_client
+        self._redis = redis_client
         self.limit_per_sec = settings.rate_limit_per_sec
+
+    @property
+    def redis(self):
+        # Fall back to the app's live client when wired before lifespan startup.
+        if self._redis is not None:
+            return self._redis
+        import app.main as main_module
+        return main_module.redis_client
 
     async def dispatch(self, request: Request, call_next):
         merchant_id = getattr(request.state, "merchant_id", None)

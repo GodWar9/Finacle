@@ -22,10 +22,27 @@ def canonical_hash(body: dict) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 class IdempotencyMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app, redis_client: redis.Redis, pg_pool: asyncpg.Pool):
+    def __init__(self, app, redis_client: redis.Redis = None, pg_pool: asyncpg.Pool = None):
         super().__init__(app)
-        self.redis = redis_client
-        self.pg_pool = pg_pool
+        self._redis = redis_client
+        self._pg_pool = pg_pool
+
+    @property
+    def redis(self):
+        # Fall back to the app's live client when wired before lifespan startup
+        # (main.py registers this middleware at import time while the module
+        # globals are still None placeholders).
+        if self._redis is not None:
+            return self._redis
+        import app.main as main_module
+        return main_module.redis_client
+
+    @property
+    def pg_pool(self):
+        if self._pg_pool is not None:
+            return self._pg_pool
+        import app.main as main_module
+        return main_module.pg_pool
 
     async def dispatch(self, request: Request, call_next):
         if request.method != "POST":

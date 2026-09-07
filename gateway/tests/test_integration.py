@@ -135,5 +135,27 @@ def test_idempotency_conflict_detection():
     
     assert canonical_hash(body1) != canonical_hash(body2)
 
+@pytest.mark.asyncio
+async def test_middleware_resolves_live_clients_from_app_main(monkeypatch):
+    """Regression: main.py registers client-dependent middleware at import
+    time, when the app.main redis/pg globals are still None placeholders. The
+    middleware must therefore resolve the live clients lazily at request time -
+    otherwise every POST crashes with 'NoneType' object has no attribute 'get'."""
+    import sys
+    import types
+
+    fake_main = types.SimpleNamespace(
+        redis_client=AsyncMock(),
+        pg_pool=AsyncMock(),
+    )
+    monkeypatch.setitem(sys.modules, "app.main", fake_main)
+
+    idem = IdempotencyMiddleware(None, None, None)
+    assert idem.redis is fake_main.redis_client
+    assert idem.pg_pool is fake_main.pg_pool
+
+    rate = RateLimitMiddleware(None, None)
+    assert rate.redis is fake_main.redis_client
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
