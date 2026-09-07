@@ -3,6 +3,7 @@ FROM ubuntu:22.04 AS recon-builder
 RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
+    git \
     pkg-config \
     libpqxx-dev \
     && rm -rf /var/lib/apt/lists/*
@@ -19,7 +20,7 @@ RUN cmake -B build -DCMAKE_BUILD_TYPE=Release -DENABLE_OPENMP=ON -DBUILD_TESTS=O
 FROM python:3.11-slim
 
 RUN apt-get update && apt-get install -y \
-    libpqxx-6.4 \
+    libpqxx-7.10 \
     libgomp1 \
     libpq5 \
     ca-certificates \
