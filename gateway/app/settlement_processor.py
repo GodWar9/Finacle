@@ -128,7 +128,7 @@ class SettlementProcessor:
             for row in rows:
                 # Fixed-width format matching recon engine's FixedWidthLayout:
                 # ref: 20 chars at pos 0, amt: 13 chars at pos 20, ccy: 3 chars at pos 33, sts: 7 chars at pos 36
-                ref = row['transaction_id'][:20].ljust(20)
+                ref = str(row['transaction_id'])[:20].ljust(20)
                 amt = str(row['amount_minor']).rjust(13)
                 ccy = row['currency'][:3].ljust(3)
                 sts = row['status'][:7].ljust(7)
