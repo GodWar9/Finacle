@@ -1,6 +1,4 @@
 #[cfg(feature = "kafka")]
-use chrono::Utc;
-#[cfg(feature = "kafka")]
 use rdkafka::producer::{FutureProducer, FutureRecord};
 #[cfg(feature = "kafka")]
 use rdkafka::ClientConfig;
@@ -26,7 +24,7 @@ impl OutboxPoller {
         kafka_brokers: &str,
         batch_size: usize,
         poll_interval_ms: u64,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let producer: FutureProducer = ClientConfig::new()
             .set("bootstrap.servers", kafka_brokers)
             .set("message.timeout.ms", "5000")
@@ -40,7 +38,7 @@ impl OutboxPoller {
         })
     }
 
-    pub async fn run(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn run(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         info!("Starting outbox poller");
         loop {
             if let Err(e) = self.poll_once().await {
@@ -50,29 +48,38 @@ impl OutboxPoller {
         }
     }
 
-    async fn poll_once(&self) -> Result<usize, Box<dyn std::error::Error>> {
+    async fn poll_once(&self) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
         let mut tx: Transaction<'_, Postgres> = self.pool.begin().await?;
 
-        let rows = sqlx::query!(
-            r#"
+        // Runtime-checked queries (not sqlx::query!) so the offline .sqlx cache
+        // stays feature-agnostic: these are only compiled with the `kafka`
+        // feature, and the committed cache is prepared without it.
+        let sql = "
             SELECT event_id, topic, payload_json
             FROM outbox_events
             WHERE published = false
             ORDER BY created_at
             LIMIT $1
             FOR UPDATE SKIP LOCKED
-            "#,
-            self.batch_size as i64
-        )
-        .fetch_all(&mut *tx)
-        .await?;
+        ";
+        let rows = sqlx::query(sql)
+            .bind(self.batch_size as i64)
+            .fetch_all(&mut *tx)
+            .await?;
 
         let count = rows.len();
 
         for row in rows {
-            let record = FutureRecord::to(&row.topic)
-                .payload(&row.payload_json.to_string())
-                .key(&row.event_id.to_string());
+            use sqlx::Row;
+            let event_id: Uuid = row.get("event_id");
+            let topic: String = row.get("topic");
+            let payload_json: serde_json::Value = row.get("payload_json");
+
+            let event_id_str = event_id.to_string();
+            let payload = payload_json.to_string();
+            let record = FutureRecord::to(&topic)
+                .payload(&payload)
+                .key(&event_id_str);
 
             match self
                 .producer
@@ -80,15 +87,13 @@ impl OutboxPoller {
                 .await
             {
                 Ok(_) => {
-                    sqlx::query!(
-                        "UPDATE outbox_events SET published = true WHERE event_id = $1",
-                        row.event_id
-                    )
-                    .execute(&mut *tx)
-                    .await?;
+                    sqlx::query("UPDATE outbox_events SET published = true WHERE event_id = $1")
+                        .bind(event_id)
+                        .execute(&mut *tx)
+                        .await?;
                 }
                 Err((e, _)) => {
-                    warn!("Failed to publish event {}: {}", row.event_id, e);
+                    warn!("Failed to publish event {}: {}", event_id, e);
                 }
             }
         }
@@ -113,7 +118,7 @@ impl OutboxPoller {
         _kafka_brokers: &str,
         _batch_size: usize,
         _poll_interval_ms: u64,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         Err("Kafka feature not enabled".into())
     }
 }
