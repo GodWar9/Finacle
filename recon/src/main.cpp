@@ -5,6 +5,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <algorithm>
 #include <cstdlib>
 #include <chrono>
 #include <random>
@@ -92,9 +93,9 @@ int main(int argc, char* argv[]) {
         std::cout << "Reconciliation completed in " << duration.count() << " ms\n";
         std::cout << "Exceptions found: " << exceptions.size() << "\n";
         
-        size_t matched_count = std::min(ledger_records.size(), bank_records.size()) - 
-                               std::count_if(exceptions.begin(), exceptions.end(), 
-                                   [](const auto& e) { return e.type == recon::ExceptionType::AMOUNT_MISMATCH || e.type == recon::ExceptionType::STATUS_MISMATCH; });
+        size_t matched_count = bank_records.size()
+                               - std::count_if(exceptions.begin(), exceptions.end(),
+                                   [](const auto& e) { return e.type == recon::ExceptionType::MISSING_IN_LEDGER; });
         
         recon::DbWriter writer(db_url);
         writer.write_exceptions(exceptions);
