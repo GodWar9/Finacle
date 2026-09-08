@@ -2,7 +2,7 @@ use crate::ledger::domain::{
     Direction, GetBalanceResponse, LedgerEntry, LedgerError, PostedTransaction, TransactionRequest,
 };
 use crate::ledger::idempotency::{insert_idempotency_record, lookup_idempotency};
-use crate::ledger::outbox::insert_outbox_event;
+use crate::ledger::outbox::{insert_outbox_event, insert_reversal_outbox_event};
 use chrono::Utc;
 use sqlx::{PgPool, Postgres, Transaction};
 use tracing::{error, info};
@@ -218,13 +218,16 @@ pub async fn reverse_transaction(
 
     let result = post_transaction(pool, req).await?;
 
+    let mut tx = pool.begin().await?;
     sqlx::query!(
         "UPDATE transactions SET status = 'REVERSED', reversal_of = $1 WHERE transaction_id = $2",
         original_txn_id,
         original_txn_id
     )
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+    insert_reversal_outbox_event(&mut tx, result.transaction_id, original_txn_id, &reason).await?;
+    tx.commit().await?;
 
     Ok(result)
 }
