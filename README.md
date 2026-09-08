@@ -27,7 +27,7 @@
 | Component | Language | Purpose |
 |-----------|----------|---------|
 | **Ledger Core** | Rust | Money-movement hot path, double-entry enforcement, gRPC API |
-| **Reconciliation Engine** | C++ | Batch three-way matching (ledger, gateway, bank files) |
+| **Reconciliation Engine** | C++ | Batch matching (ledger export vs bank settlement file) |
 | **API Gateway** | Python/FastAPI | Public REST API, idempotency, rate limiting, auth |
 | **RAG Copilot** | Python | Grounded Q&A over policies + live operational data |
 
@@ -36,7 +36,7 @@
 1. **Every transaction is balanced** - Sum of debits == sum of credits (enforced at DB + app level)
 2. **Append-only ledger** - No UPDATE/DELETE on ledger_entries (WORM)
 3. **Idempotent writes** - Idempotency-Key required for all POST, replay-safe
-4. **Adversarial reconciliation** - Three-way match, exceptions never auto-resolved
+4. **Adversarial reconciliation** - Matches the internal ledger against the bank settlement file; exceptions are never auto-resolved
 
 ## Quick Start
 
