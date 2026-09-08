@@ -19,6 +19,8 @@ RUN python -m grpc_tools.protoc \
     --pyi_out=. \
     proto/ledger.proto
 
+COPY frontend ./static
+
 EXPOSE 8000
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,5 +1,7 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 import asyncpg
 import redis.asyncio as redis
 import structlog
@@ -83,6 +85,8 @@ app.include_router(settlements.router)
 
 app.add_route("/metrics", metrics_endpoint)
 
-@app.get("/")
-async def root():
-    return {"service": "ledger-api-gateway", "version": "0.1.0"}
+# Serve the demo portal. Routes registered above (health, api/v1, metrics)
+# take precedence; everything else falls through to the static frontend.
+STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+if STATIC_DIR.is_dir():
+    app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="portal")
