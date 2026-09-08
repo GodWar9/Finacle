@@ -55,8 +55,16 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
                 detail="Idempotency-Key header is required for POST"
             )
 
-        body = await request.json()
-        req_hash = canonical_hash(body)
+        # The Idempotency-Key must be computed over the exact request the
+        # client sent. JSON bodies are hashed canonically (after parsing);
+        # any other body (multipart settlement uploads, raw bytes) is hashed
+        # as the raw payload instead of failing on request.json().
+        raw_body = await request.body()
+        try:
+            body = json.loads(raw_body) if raw_body else {}
+            req_hash = canonical_hash(body)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            req_hash = hashlib.sha256(raw_body).hexdigest()
         cache_key = f"idem:{idempotency_key}"
 
         cached = await self.redis.get(cache_key)

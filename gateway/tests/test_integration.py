@@ -1,5 +1,6 @@
 import pytest
 import asyncio
+import json
 from uuid import uuid4, UUID
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
@@ -74,6 +75,7 @@ async def test_full_idempotency_flow(mock_redis, mock_pg_pool):
     mock_request = MagicMock()
     mock_request.method = "POST"
     mock_request.headers = {"Idempotency-Key": idempotency_key}
+    mock_request.body = AsyncMock(return_value=json.dumps(request_body).encode())
     mock_request.json = AsyncMock(return_value=request_body)
     
     mock_response = MagicMock()
