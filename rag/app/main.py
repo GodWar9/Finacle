@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException, status
 import structlog
@@ -8,6 +9,7 @@ from app.models.schemas import AskRequest, AskResponse, IngestPolicyRequest, Ing
 from app.qa import answer_question
 from app.db import get_pool, index_document
 from app.embedding import embed_text, chunk_text
+from app.seed import seed_policies
 
 structlog.configure(
     processors=[
@@ -33,7 +35,11 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Seed the policy knowledge base in the background (only when an OpenAI API
+    # key is configured; idempotent per source_ref).
+    app.state.seed_task = asyncio.create_task(seed_policies())
     yield
+    app.state.seed_task.cancel()
 
 app = FastAPI(
     title="RAG Compliance & Reconciliation Copilot",

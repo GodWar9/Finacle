@@ -5,8 +5,18 @@ from app.config import get_settings
 
 settings = get_settings()
 
+async def _init_vector_codec(conn) -> None:
+    """Teach asyncpg how to encode/decode pgvector `vector` columns."""
+    from pgvector.asyncpg import register_vector
+    await register_vector(conn)
+
 async def get_pool() -> asyncpg.Pool:
-    return await asyncpg.create_pool(settings.database_url, min_size=2, max_size=10)
+    return await asyncpg.create_pool(
+        settings.database_url,
+        min_size=2,
+        max_size=10,
+        init=_init_vector_codec,
+    )
 
 async def index_document(
     pool: asyncpg.Pool,

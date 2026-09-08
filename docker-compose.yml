@@ -114,3 +114,17 @@ services:
       KAFKA_BROKERS: kafka:9092
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       EMBEDDING_MODEL: text-embedding-3-small
+
+  rag-indexer:
+    build: ./rag
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://ledger_app:dev_only@postgres:5432/ledger
+      KAFKA_BROKERS: kafka:9092
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      EMBEDDING_MODEL: text-embedding-3-small
+    command: ["python", "-m", "indexer.kafka_consumer"]

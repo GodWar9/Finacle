@@ -40,7 +40,18 @@ async def index_document_from_event(pool, event: dict, source_type: str, source_
         content = render_exception_narrative(event)
     else:
         return
-    
+
+    if not settings.openai_api_key:
+        # embed_text() degrades to all-zero vectors when no key is configured;
+        # indexing them would make the zero vectors the "most similar" match
+        # for every future query, so skip until a key is available.
+        logger.warning(
+            "index_skipped_no_api_key",
+            source_type=source_type,
+            source_ref=source_ref,
+        )
+        return
+
     embedding = await embed_text(content)
     await index_document(pool, source_type, source_ref, content, embedding)
     logger.info("indexed_event", source_type=source_type, source_ref=source_ref)

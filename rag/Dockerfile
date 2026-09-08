@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y \
 COPY pyproject.toml README.md ./
 COPY app ./app
 COPY indexer ./indexer
+COPY policies ./policies
 RUN pip install --no-cache-dir -e .
 
 EXPOSE 8001
