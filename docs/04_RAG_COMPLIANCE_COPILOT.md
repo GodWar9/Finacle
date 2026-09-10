@@ -26,18 +26,18 @@ This is a **retrieval-grounded QA system over two distinct corpora that are kept
 ## 3. Ingestion pipeline (two corpora, kept distinguishable)
 
 ```python
-# rag/indexer/ingest_policy_docs.py
-async def ingest_policy_document(path: str, source_type: str = "POLICY_DOC"):
-    text = load_and_clean(path)                     # strip headers/footers, normalize whitespace
-    chunks = chunk_text(text, max_tokens=400, overlap=50)  # semantic-ish chunking, not mid-sentence
-    for chunk in chunks:
-        embedding = await embed(chunk)
-        await db.execute(
-            """INSERT INTO rag_documents (source_type, source_ref, content, embedding)
-               VALUES ($1, $2, $3, $4)""",
-            source_type, path, chunk, embedding,
-        )
+# rag/app/seed.py — bundled policy documents, seeded at service startup (idempotent per source_ref)
+async def seed_policies():
+    for path in sorted(POLICIES_DIR.glob("*.txt")):      # rag/policies/*.txt
+        if await get_document_by_ref(pool, "POLICY_DOC", path.stem):
+            continue                                       # already indexed
+        for chunk in chunk_text(path.read_text()):         # semantic-ish chunking, not mid-sentence
+            embedding = await embed_text(chunk)
+            await index_document(pool, "POLICY_DOC", f"{path.stem}#chunk_{i}", chunk, embedding)
 ```
+Policy seeding (and Kafka event indexing) only runs when `OPENAI_API_KEY` is
+configured; otherwise it is skipped so all-zero vectors can never masquerade
+as "most similar".
 
 ```python
 # rag/indexer/kafka_consumer.py — live operational data, indexed as it happens
