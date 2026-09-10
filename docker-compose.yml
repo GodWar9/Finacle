@@ -129,3 +129,19 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       EMBEDDING_MODEL: text-embedding-3-small
     command: ["python", "-m", "indexer.kafka_consumer"]
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    ports: ["9090:9090"]
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    ports: ["3000:3000"]
+    depends_on: [prometheus]
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana_dashboard.json:/var/lib/grafana/dashboards/finacle.json:ro
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
