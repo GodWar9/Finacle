@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     rate_limit_per_sec: int = 50
     idempotency_ttl_seconds: int = 86400
+    kafka_brokers: str = "localhost:9092"
 
 @lru_cache()
 def get_settings() -> Settings:
