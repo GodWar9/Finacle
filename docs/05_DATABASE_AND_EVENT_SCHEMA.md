@@ -22,7 +22,7 @@ CREATE TABLE accounts (
 );
 ```
 
-Balance is **never** stored as a mutable column on `accounts`. It is always *derived* by summing `ledger_entries` (see below). This is the single most important design decision in a real ledger — a cached `balance` column that can drift from the entries is how banks get audit findings.
+Balance is **never** stored as a mutable column on `accounts`. It is always *derived* by summing `ledger_entries` (see below). A materialized `account_balances` table provides O(1) reads but is always kept in sync via trigger — the auditor job (doc 01) verifies consistency between the two.
 
 ### 1.2 `transactions` (the journal header)
 
@@ -94,7 +94,37 @@ FOR EACH ROW EXECUTE FUNCTION check_transaction_balanced();
 
 This is the enforcement mechanism the Rust engine relies on as a **second, independent** check (defense in depth — app-level validation in Rust, hard DB constraint here).
 
-### 1.5 `reconciliation_exceptions` (owned by the C++ reconciliation engine, written via its Python-callable output — see doc 02)
+### 1.5 `account_balances` (materialized balance cache — kept in sync by trigger)
+
+```sql
+CREATE TABLE account_balances (
+    account_id        UUID PRIMARY KEY REFERENCES accounts(account_id),
+    balance_minor     BIGINT NOT NULL DEFAULT 0,
+    currency          CHAR(3) NOT NULL,
+    as_of_transaction_id UUID,
+    updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+Balance is also **derived** from `ledger_entries` for correctness auditing (see doc 01 auditor). This materialized table exists for O(1) reads — `GetBalance` never sums entries at query time. A trigger keeps it in sync on every insert to `ledger_entries`.
+
+### 1.6 `outbox_events` (transactional outbox — see doc 01)
+
+```sql
+CREATE TABLE outbox_events (
+    event_id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    transaction_id    UUID NOT NULL REFERENCES transactions(transaction_id),
+    event_type        TEXT NOT NULL,       -- 'ledger.transaction.posted' | 'ledger.transaction.reversed'
+    payload           JSONB NOT NULL,
+    published         BOOLEAN NOT NULL DEFAULT false,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_outbox_unpublished ON outbox_events(created_at) WHERE published = false;
+```
+
+The Rust outbox poller reads unpublished events with `FOR UPDATE SKIP LOCKED`, publishes to Kafka, then marks them `published = true`. This guarantees at-least-once delivery without coupling the ledger write path to Kafka availability.
+
+### 1.7 `reconciliation_exceptions` (owned by the C++ reconciliation engine, written via its Python-callable output — see doc 02)
 
 ```sql
 CREATE TABLE reconciliation_exceptions (
