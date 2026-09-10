@@ -26,9 +26,9 @@ async def upload_settlement_file(
     """Upload a bank settlement file for processing"""
     if not batch_id:
         batch_id = str(uuid.uuid4())
-    
+
     content = await file.read()
-    
+
     # Parse the settlement file (fixed-width format)
     # For now, just store the file info
     pool = await get_pg_pool()
@@ -38,9 +38,9 @@ async def upload_settlement_file(
                VALUES ($1, $2, $3, 'UPLOADED', $4)""",
             batch_id, file.filename, content, merchant_id
         )
-        
+
         logger.info("settlement_file_uploaded", batch_id=batch_id, filename=file.filename, merchant_id=merchant_id)
-        
+
         return {
             "batch_id": batch_id,
             "filename": file.filename,
@@ -67,7 +67,7 @@ async def get_settlement_status(
         )
         if not row:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Settlement batch not found")
-        
+
         return {
             "batch_id": row["batch_id"],
             "filename": row["filename"],
@@ -79,16 +79,3 @@ async def get_settlement_status(
         }
     finally:
         await pool.close()
-
-@router.post("/settlements/{batch_id}/process")
-async def process_settlement(
-    batch_id: str,
-    merchant_id: str = Depends(get_current_merchant),
-):
-    """Trigger settlement processing for a batch"""
-    # This would trigger the settlement processor
-    return {
-        "batch_id": batch_id,
-        "status": "PROCESSING",
-        "message": "Settlement processing started"
-    }
