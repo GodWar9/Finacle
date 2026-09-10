@@ -79,6 +79,7 @@ services:
     profiles: ["batch"]
     environment:
       DATABASE_URL: postgresql://ledger_app:dev_only@postgres:5432/ledger
+      KAFKA_BROKERS: kafka:9092
       RECON_ENGINE_PATH: /app/recon_engine
       POLL_INTERVAL: "10"
       RUST_LOG: info

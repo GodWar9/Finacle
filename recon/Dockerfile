@@ -21,7 +21,7 @@ RUN cmake -B build -DCMAKE_BUILD_TYPE=Release -DENABLE_OPENMP=ON \
 FROM ubuntu:22.04
 
 RUN apt-get update && apt-get install -y \
-    libpqxx-6.4 \
+    libpqxx-dev \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 

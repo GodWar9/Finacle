@@ -6,10 +6,12 @@ import hashlib
 from app.grpc_client import get_grpc_client
 import ledger_pb2
 from app.auth import verify_webhook_signature, get_current_merchant
+from app.config import get_settings
 from uuid import UUID
 
 logger = structlog.get_logger()
 router = APIRouter(prefix="/api/v1/webhooks", tags=["webhooks"])
+settings = get_settings()
 
 @router.post("/payment-gateway")
 async def payment_gateway_webhook(
@@ -19,17 +21,17 @@ async def payment_gateway_webhook(
 ):
     payload = await request.body()
     
-    webhook_secret = "webhook-secret-change-in-production"
+    webhook_secret = settings.webhook_secret
     if not verify_webhook_signature(payload, x_signature, webhook_secret):
         logger.warning("webhook_invalid_signature", merchant_id=merchant_id)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid signature")
-    
+
     try:
         import json
         data = json.loads(payload)
     except json.JSONDecodeError:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid JSON")
-    
+
     event_type = data.get("event_type")
     if event_type != "payment.captured":
         logger.info("webhook_ignored_event", event_type=event_type, merchant_id=merchant_id)
@@ -84,11 +86,11 @@ async def reconciliation_webhook(
     merchant_id: str = Depends(get_current_merchant)
 ):
     payload = await request.body()
-    
-    webhook_secret = "webhook-secret-change-in-production"
+
+    webhook_secret = settings.webhook_secret
     if not verify_webhook_signature(payload, x_signature, webhook_secret):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid signature")
-    
+
     try:
         import json
         data = json.loads(payload)

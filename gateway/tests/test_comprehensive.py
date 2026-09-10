@@ -40,7 +40,7 @@ async def test_list_transactions():
     mock_pool.close = AsyncMock()
     mock_pool.acquire = MagicMock(return_value=MockAsyncCM(AsyncMock()))
     
-    with patch("app.routes.transaction_history.get_pg_pool", return_value=mock_pool):
+    with patch("app.routes.transaction_history._get_pool", return_value=mock_pool):
         result = await transaction_history.list_transactions("merchant_1", account_id=account_id)
         
         assert "transactions" in result
@@ -83,7 +83,7 @@ async def test_get_transaction():
     mock_pool.close = AsyncMock()
     mock_pool.acquire = MagicMock(return_value=MockAsyncCM(AsyncMock()))
     
-    with patch("app.routes.transaction_history.get_pg_pool", return_value=mock_pool):
+    with patch("app.routes.transaction_history._get_pool", return_value=mock_pool):
         result = await transaction_history.get_transaction(txn_id, "merchant_1")
         
         assert result["transaction_id"] == txn_id
@@ -97,7 +97,7 @@ async def test_get_transaction_not_found():
     mock_pool.close = AsyncMock()
     mock_pool.acquire = MagicMock(return_value=MockAsyncCM(AsyncMock()))
     
-    with patch("app.routes.transaction_history.get_pg_pool", return_value=mock_pool):
+    with patch("app.routes.transaction_history._get_pool", return_value=mock_pool):
         with pytest.raises(Exception) as exc_info:
             await transaction_history.get_transaction(txn_id, "merchant_1")
         
@@ -114,7 +114,7 @@ async def test_upload_settlement_file():
     mock_file.filename = "settlement.txt"
     mock_file.read = AsyncMock(return_value=b"test content")
     
-    with patch("app.routes.settlements.get_pg_pool", return_value=mock_pool):
+    with patch("app.routes.settlements._get_pool", return_value=mock_pool):
         result = await settlements.upload_settlement_file(
             mock_file, None, "merchant_1"
         )
@@ -139,7 +139,7 @@ async def test_get_settlement_status():
     mock_pool.close = AsyncMock()
     mock_pool.acquire = MagicMock(return_value=MockAsyncCM(AsyncMock()))
     
-    with patch("app.routes.settlements.get_pg_pool", return_value=mock_pool):
+    with patch("app.routes.settlements._get_pool", return_value=mock_pool):
         result = await settlements.get_settlement_status(batch_id, "merchant_1")
         
         assert result["batch_id"] == batch_id

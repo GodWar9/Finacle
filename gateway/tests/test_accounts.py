@@ -31,7 +31,7 @@ async def test_create_account():
     mock_pool.close = AsyncMock()
     mock_pool.acquire = MagicMock(return_value=MockAsyncCM(AsyncMock()))
     
-    with patch("app.routes.accounts.get_pg_pool", return_value=mock_pool):
+    with patch("app.routes.accounts._get_pool", return_value=mock_pool):
         req = CreateAccountRequest(
             account_number="ACC123",
             account_type="ASSET",
@@ -55,7 +55,7 @@ async def test_create_account_duplicate():
     mock_pool.close = AsyncMock()
     mock_pool.acquire = MagicMock(return_value=MockAsyncCM(AsyncMock()))
     
-    with patch("app.routes.accounts.get_pg_pool", return_value=mock_pool):
+    with patch("app.routes.accounts._get_pool", return_value=mock_pool):
         req = CreateAccountRequest(
             account_number="ACC123",
             account_type="ASSET",
@@ -85,7 +85,7 @@ async def test_list_accounts():
     mock_pool.close = AsyncMock()
     mock_pool.acquire = MagicMock(return_value=MockAsyncCM(AsyncMock()))
     
-    with patch("app.routes.accounts.get_pg_pool", return_value=mock_pool):
+    with patch("app.routes.accounts._get_pool", return_value=mock_pool):
         result = await accounts.list_accounts("merchant_1", None, 50, 0)
         
         assert result.total == 1
@@ -107,7 +107,7 @@ async def test_freeze_account():
     mock_pool.close = AsyncMock()
     mock_pool.acquire = MagicMock(return_value=MockAsyncCM(AsyncMock()))
     
-    with patch("app.routes.accounts.get_pg_pool", return_value=mock_pool):
+    with patch("app.routes.accounts._get_pool", return_value=mock_pool):
         result = await accounts.freeze_account(uuid4(), "merchant_1")
         
         assert result.status == "FROZEN"
@@ -127,7 +127,7 @@ async def test_unfreeze_account():
     mock_pool.close = AsyncMock()
     mock_pool.acquire = MagicMock(return_value=MockAsyncCM(AsyncMock()))
     
-    with patch("app.routes.accounts.get_pg_pool", return_value=mock_pool):
+    with patch("app.routes.accounts._get_pool", return_value=mock_pool):
         result = await accounts.unfreeze_account(uuid4(), "merchant_1")
         
         assert result.status == "ACTIVE"
