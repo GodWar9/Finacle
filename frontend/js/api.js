@@ -15,8 +15,9 @@
 */
 
 var USE_MOCK_DATA = true;
-var GATEWAY_BASE_URL = "http://localhost:8000"; // gateway, doc 03
-var RAG_BASE_URL = "http://localhost:8001";      // rag copilot, doc 04
+var GATEWAY_BASE_URL = "http://localhost:8000";
+var RAG_BASE_URL = "http://localhost:8001";
+var API_KEY = "";  // set to your X-API-Key value when USE_MOCK_DATA = false
 
 var Api = {
 
@@ -33,7 +34,9 @@ var Api = {
     if (USE_MOCK_DATA) {
       return this._fakeDelay(MOCK_DATA.accounts);
     }
-    return fetch(GATEWAY_BASE_URL + "/api/v1/accounts").then(function (r) {
+    return fetch(GATEWAY_BASE_URL + "/api/v1/accounts", {
+      headers: { "X-API-Key": API_KEY }
+    }).then(function (r) {
       return r.json();
     });
   },
@@ -46,7 +49,9 @@ var Api = {
       });
       return this._fakeDelay(sorted);
     }
-    return fetch(GATEWAY_BASE_URL + "/api/v1/transactions").then(function (r) {
+    return fetch(GATEWAY_BASE_URL + "/api/v1/transactions", {
+      headers: { "X-API-Key": API_KEY }
+    }).then(function (r) {
       return r.json();
     });
   },
@@ -87,7 +92,8 @@ var Api = {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Idempotency-Key": idempotencyKey
+        "Idempotency-Key": idempotencyKey,
+        "X-API-Key": API_KEY
       },
       body: JSON.stringify({
         transaction_type: transactionType,
@@ -104,7 +110,9 @@ var Api = {
     if (USE_MOCK_DATA) {
       return this._fakeDelay(MOCK_DATA.reconciliationExceptions);
     }
-    return fetch(GATEWAY_BASE_URL + "/api/v1/reconciliation/exceptions").then(function (r) {
+    return fetch(GATEWAY_BASE_URL + "/api/v1/reconciliation/exceptions", {
+      headers: { "X-API-Key": API_KEY }
+    }).then(function (r) {
       return r.json();
     });
   },
@@ -123,7 +131,7 @@ var Api = {
     }
     return fetch(RAG_BASE_URL + "/api/v1/rag/ask", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-API-Key": API_KEY },
       body: JSON.stringify({ question: question, scope: scope })
     }).then(function (r) {
       return r.json();
