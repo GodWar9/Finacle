@@ -134,7 +134,7 @@ class SettlementProcessor:
             event = {
                 "exception_id": str(exc["exception_id"]),
                 "exception_type": exc["exception_type"],
-                "transaction_id": exc["ledger_transaction_id"] or None,
+                "transaction_id": str(exc["ledger_transaction_id"]) if exc["ledger_transaction_id"] else None,
                 "batch_id": batch_id,
             }
             await self.kafka_producer.send_and_wait(
