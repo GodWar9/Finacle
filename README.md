@@ -61,8 +61,9 @@ business logic and LLM integration).
    response (Redis hot path + Postgres durable backstop). Reusing a key with a *different* body is a 409.
 4. **Transactional outbox** — event publication and the ledger write commit atomically; a poller
    forwards `outbox_events` to Kafka (`ledger.transaction.posted` / `.reversed`).
-5. **Adversarial reconciliation** — the C++ engine matches the internal ledger against the bank
-   settlement file and flags every mismatch as an exception; exceptions are never auto-resolved.
+5. **Adversarial reconciliation** — the C++ engine performs a three-way match across the payment
+   gateway record, bank settlement file, and internal ledger; every mismatch is flagged as an
+   exception and never auto-resolved.
 6. **Concurrency-safe** — `SERIALIZABLE` isolation on posting; the gateway retries transient
    serialization failures.
 
