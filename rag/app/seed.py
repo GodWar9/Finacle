@@ -1,8 +1,9 @@
-import structlog
 from pathlib import Path
 
+import structlog
+
 from app.config import get_settings
-from app.db import get_pool, index_document, get_document_by_ref
+from app.db import get_document_by_ref, get_pool, index_document
 from app.embedding import chunk_text, embed_text
 
 logger = structlog.get_logger()

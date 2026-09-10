@@ -1,7 +1,8 @@
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
 from datetime import datetime
+from unittest.mock import AsyncMock, patch
+from uuid import uuid4
+
+import pytest
 
 from app.routes import reconciliation
 
@@ -50,7 +51,7 @@ async def test_list_reconciliation_exceptions_with_filters():
     mock_pool.fetch = AsyncMock(return_value=[])
 
     with patch("app.routes.reconciliation._get_pool", return_value=mock_pool):
-        result = await reconciliation.list_reconciliation_exceptions(
+        await reconciliation.list_reconciliation_exceptions(
             "merchant_1", batch_id="batch-002", exception_type="MISSING_IN_LEDGER"
         )
 

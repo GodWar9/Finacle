@@ -1,8 +1,7 @@
-import json
 import asyncio
-from typing import List, Dict, Any
-from app.qa import answer_question
+
 from app.models.schemas import AskRequest
+from app.qa import answer_question
 
 EVAL_QUESTIONS = [
     {

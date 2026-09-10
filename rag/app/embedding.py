@@ -1,5 +1,6 @@
+
 import tiktoken
-from typing import List
+
 from app.config import get_settings
 
 settings = get_settings()
@@ -10,7 +11,7 @@ def get_encoding():
     except KeyError:
         return tiktoken.get_encoding("cl100k_base")
 
-def chunk_text(text: str, max_tokens: int = None, overlap: int = None) -> List[str]:
+def chunk_text(text: str, max_tokens: int | None = None, overlap: int | None = None) -> list[str]:
     if max_tokens is None:
         max_tokens = settings.chunk_size
     if overlap is None:
@@ -34,7 +35,7 @@ def chunk_text(text: str, max_tokens: int = None, overlap: int = None) -> List[s
     
     return chunks
 
-async def embed_text(text: str) -> List[float]:
+async def embed_text(text: str) -> list[float]:
     from openai import AsyncOpenAI
     
     settings = get_settings()

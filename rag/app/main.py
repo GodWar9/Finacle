@@ -1,14 +1,21 @@
 import asyncio
-from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends, HTTPException, status
-import structlog
 import logging
+from contextlib import asynccontextmanager
+
+import structlog
+from fastapi import FastAPI, status
 
 from app.config import get_settings
-from app.models.schemas import AskRequest, AskResponse, IngestPolicyRequest, IngestPolicyResponse, HealthResponse
-from app.qa import answer_question
 from app.db import get_pool, index_document
-from app.embedding import embed_text, chunk_text
+from app.embedding import chunk_text, embed_text
+from app.models.schemas import (
+    AskRequest,
+    AskResponse,
+    HealthResponse,
+    IngestPolicyRequest,
+    IngestPolicyResponse,
+)
+from app.qa import answer_question
 from app.seed import seed_policies
 
 structlog.configure(

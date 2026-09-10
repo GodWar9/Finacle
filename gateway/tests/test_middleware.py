@@ -1,12 +1,11 @@
-import pytest
-import json
 import hashlib
-from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
+import json
+from unittest.mock import AsyncMock, MagicMock
 
-from app.idempotency import canonical_hash, IdempotencyMiddleware
+import pytest
+
+from app.idempotency import IdempotencyMiddleware, canonical_hash
 from app.rate_limit import RateLimitMiddleware
-from app.config import Settings
 
 
 def _post_request(body_bytes: bytes, headers=None):

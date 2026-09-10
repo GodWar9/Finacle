@@ -1,6 +1,6 @@
 import pytest
-
 from app.embedding import chunk_text
+
 
 @pytest.mark.asyncio
 async def test_chunk_text_short():

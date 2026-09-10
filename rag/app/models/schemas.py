@@ -1,10 +1,11 @@
-from pydantic import BaseModel
-from typing import List, Optional
 from uuid import UUID
+
+from pydantic import BaseModel
+
 
 class AskRequest(BaseModel):
     question: str
-    scope: Optional[str] = None
+    scope: str | None = None
 
 class SourceCitation(BaseModel):
     source_type: str
@@ -13,7 +14,7 @@ class SourceCitation(BaseModel):
 
 class AskResponse(BaseModel):
     answer: str
-    sources: List[SourceCitation]
+    sources: list[SourceCitation]
 
 class IngestPolicyRequest(BaseModel):
     source_type: str

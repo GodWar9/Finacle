@@ -1,11 +1,8 @@
-from fastapi import APIRouter, HTTPException, status, Depends, Query
-from uuid import UUID
-from typing import Optional, List
+
 import structlog
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.auth import get_current_merchant
-
-import asyncpg
 
 logger = structlog.get_logger()
 router = APIRouter(prefix="/api/v1", tags=["reconciliation"])
@@ -19,8 +16,8 @@ async def _get_pool():
 @router.get("/reconciliation/exceptions")
 async def list_reconciliation_exceptions(
     merchant_id: str = Depends(get_current_merchant),
-    batch_id: Optional[str] = None,
-    exception_type: Optional[str] = None,
+    batch_id: str | None = None,
+    exception_type: str | None = None,
     limit: int = Query(50, le=200),
     offset: int = Query(0, ge=0),
 ):

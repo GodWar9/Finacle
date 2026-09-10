@@ -1,7 +1,7 @@
-from fastapi import APIRouter, HTTPException, status, Depends, Query
 from uuid import UUID
-from typing import Optional, List
+
 import structlog
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.auth import get_current_merchant
 
@@ -17,10 +17,10 @@ async def _get_pool():
 @router.get("/transactions", response_model=dict)
 async def list_transactions(
     merchant_id: str = Depends(get_current_merchant),
-    account_id: Optional[UUID] = None,
-    transaction_type: Optional[str] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
+    account_id: UUID | None = None,
+    transaction_type: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
     limit: int = Query(50, le=100),
     offset: int = Query(0, ge=0),
 ):
@@ -102,15 +102,18 @@ async def get_transaction(
 ):
     pool = await _get_pool()
     row = await pool.fetchrow(
-        "SELECT transaction_id, idempotency_key, transaction_type, reference_id, status, reversal_of, narrative, created_at FROM transactions WHERE transaction_id = $1",
-        transaction_id
+        "SELECT transaction_id, idempotency_key, transaction_type, "
+        "reference_id, status, reversal_of, narrative, created_at "
+        "FROM transactions WHERE transaction_id = $1",
+        transaction_id,
     )
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
 
     entries = await pool.fetch(
-        "SELECT entry_id, account_id, direction, amount_minor, currency FROM ledger_entries WHERE transaction_id = $1",
-        transaction_id
+        "SELECT entry_id, account_id, direction, amount_minor, "
+        "currency FROM ledger_entries WHERE transaction_id = $1",
+        transaction_id,
     )
 
     return {

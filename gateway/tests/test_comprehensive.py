@@ -1,17 +1,19 @@
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4, UUID
 from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
-from app.routes import transaction_history, settlements
+import pytest
+
+from app.routes import settlements, transaction_history
+
 
 class MockAsyncCM:
     def __init__(self, connection):
         self.conn = connection
-    
+
     async def __aenter__(self):
         return self.conn
-    
+
     async def __aexit__(self, *args):
         return None
 
@@ -39,10 +41,10 @@ async def test_list_transactions():
     ])
     mock_pool.close = AsyncMock()
     mock_pool.acquire = MagicMock(return_value=MockAsyncCM(AsyncMock()))
-    
+
     with patch("app.routes.transaction_history._get_pool", return_value=mock_pool):
         result = await transaction_history.list_transactions("merchant_1", account_id=account_id)
-        
+
         assert "transactions" in result
         assert len(result["transactions"]) == 1
         assert result["transactions"][0]["transaction_id"] == txn_id
@@ -52,7 +54,7 @@ async def test_get_transaction():
     mock_pool = AsyncMock()
     txn_id = uuid4()
     account_id = uuid4()
-    
+
     mock_pool.fetchrow = AsyncMock(return_value={
         "transaction_id": txn_id,
         "idempotency_key": "idem_123",
@@ -63,7 +65,7 @@ async def test_get_transaction():
         "narrative": "Test payment",
         "created_at": datetime(2026, 1, 1, 0, 0, 0)
     })
-    
+
     mock_pool.fetch = AsyncMock(return_value=[
         {
             "entry_id": uuid4(),
@@ -82,10 +84,10 @@ async def test_get_transaction():
     ])
     mock_pool.close = AsyncMock()
     mock_pool.acquire = MagicMock(return_value=MockAsyncCM(AsyncMock()))
-    
+
     with patch("app.routes.transaction_history._get_pool", return_value=mock_pool):
         result = await transaction_history.get_transaction(txn_id, "merchant_1")
-        
+
         assert result["transaction_id"] == txn_id
         assert len(result["entries"]) == 2
 
@@ -96,11 +98,11 @@ async def test_get_transaction_not_found():
     mock_pool.fetchrow = AsyncMock(return_value=None)
     mock_pool.close = AsyncMock()
     mock_pool.acquire = MagicMock(return_value=MockAsyncCM(AsyncMock()))
-    
+
     with patch("app.routes.transaction_history._get_pool", return_value=mock_pool):
         with pytest.raises(Exception) as exc_info:
             await transaction_history.get_transaction(txn_id, "merchant_1")
-        
+
         assert exc_info.value.status_code == 404
 
 @pytest.mark.asyncio
@@ -109,16 +111,16 @@ async def test_upload_settlement_file():
     mock_pool.execute = AsyncMock(return_value=None)
     mock_pool.close = AsyncMock()
     mock_pool.acquire = MagicMock(return_value=MockAsyncCM(AsyncMock()))
-    
+
     mock_file = MagicMock()
     mock_file.filename = "settlement.txt"
     mock_file.read = AsyncMock(return_value=b"test content")
-    
+
     with patch("app.routes.settlements._get_pool", return_value=mock_pool):
         result = await settlements.upload_settlement_file(
             mock_file, None, "merchant_1"
         )
-        
+
         assert "batch_id" in result
         assert result["filename"] == "settlement.txt"
         assert result["status"] == "UPLOADED"
@@ -138,10 +140,10 @@ async def test_get_settlement_status():
     })
     mock_pool.close = AsyncMock()
     mock_pool.acquire = MagicMock(return_value=MockAsyncCM(AsyncMock()))
-    
+
     with patch("app.routes.settlements._get_pool", return_value=mock_pool):
         result = await settlements.get_settlement_status(batch_id, "merchant_1")
-        
+
         assert result["batch_id"] == batch_id
         assert result["status"] == "UPLOADED"
 
@@ -159,43 +161,44 @@ async def test_webhook_signature():
     from app.auth import verify_webhook_signature
     payload = b'{"test": "data"}'
     secret = "test-secret"
-    
-    import hmac
+
     import hashlib
+    import hmac
     expected = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
-    
-    assert verify_webhook_signature(payload, expected, secret) == True
-    assert verify_webhook_signature(payload, "invalid", secret) == False
+
+    assert verify_webhook_signature(payload, expected, secret) is True
+    assert verify_webhook_signature(payload, "invalid", secret) is False
 
 @pytest.mark.asyncio
 async def test_auth_middleware():
     from app.auth import AuthMiddleware
     middleware = AuthMiddleware(None)
     middleware.api_keys = {"test-key": "merchant_1"}
-    
+
     mock_request = MagicMock()
     mock_request.url.path = "/health"
     mock_request.headers = {}
-    
+
     mock_call_next = AsyncMock(return_value=MagicMock())
-    
-    response = await middleware.dispatch(mock_request, mock_call_next)
+
+    await middleware.dispatch(mock_request, mock_call_next)
     mock_call_next.assert_called_once()
 
 @pytest.mark.asyncio
 async def test_auth_middleware_rejects_missing_key():
-    from app.auth import AuthMiddleware
     from fastapi import HTTPException
+
+    from app.auth import AuthMiddleware
     middleware = AuthMiddleware(None)
     middleware.api_keys = {"test-key": "merchant_1"}
-    
+
     mock_request = MagicMock()
     mock_request.url.path = "/api/v1/transactions"
     mock_request.headers = {}
-    
+
     mock_call_next = AsyncMock()
-    
+
     with pytest.raises(HTTPException) as exc_info:
         await middleware.dispatch(mock_request, mock_call_next)
-    
+
     assert exc_info.value.status_code == 401

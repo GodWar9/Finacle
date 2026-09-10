@@ -1,15 +1,18 @@
-from fastapi import APIRouter, Header, HTTPException, status, Request, Depends
 from uuid import UUID
-import grpc
-import structlog
 
-from app.models.schemas import (
-    PostTransactionRequest, PostTransactionResponse,
-    GetBalanceResponse, ReverseTransactionRequest
-)
-from app.grpc_client import get_grpc_client
+import grpc
 import ledger_pb2
+import structlog
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+
 from app.auth import get_current_merchant
+from app.grpc_client import get_grpc_client
+from app.models.schemas import (
+    GetBalanceResponse,
+    PostTransactionRequest,
+    PostTransactionResponse,
+    ReverseTransactionRequest,
+)
 
 logger = structlog.get_logger()
 router = APIRouter(prefix="/api/v1", tags=["transactions"])
@@ -22,7 +25,7 @@ async def post_transaction(
     merchant_id: str = Depends(get_current_merchant)
 ):
     client = await get_grpc_client()
-    
+
     entries = [
         ledger_pb2.LedgerEntry(
             account_id=str(e.account_id),
@@ -31,7 +34,7 @@ async def post_transaction(
             currency=e.currency,
         ) for e in req.entries
     ]
-    
+
     grpc_req = ledger_pb2.PostTransactionRequest(
         idempotency_key=idempotency_key,
         transaction_type=req.transaction_type,
@@ -39,7 +42,7 @@ async def post_transaction(
         entries=entries,
         narrative=req.narrative or "",
     )
-    
+
     max_retries = 3
     for attempt in range(max_retries):
         try:
@@ -62,15 +65,15 @@ async def post_transaction(
             else:
                 logger.error("grpc_error", error=str(e), code=e.code(), merchant_id=merchant_id)
                 raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"ledger core error: {e.details()}")
-    
+
     raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="max retries exceeded")
 
 @router.get("/accounts/{account_id}/balance", response_model=GetBalanceResponse)
 async def get_balance(account_id: UUID, merchant_id: str = Depends(get_current_merchant)):
     client = await get_grpc_client()
-    
+
     grpc_req = ledger_pb2.GetBalanceRequest(account_id=str(account_id))
-    
+
     try:
         resp = await client.get_balance(grpc_req)
         return GetBalanceResponse(
@@ -92,13 +95,13 @@ async def reverse_transaction(
     merchant_id: str = Depends(get_current_merchant)
 ):
     client = await get_grpc_client()
-    
+
     grpc_req = ledger_pb2.ReverseTransactionRequest(
         transaction_id=str(transaction_id),
         idempotency_key=req.idempotency_key,
         reason=req.reason,
     )
-    
+
     try:
         resp = await client.reverse_transaction(grpc_req)
         return PostTransactionResponse(

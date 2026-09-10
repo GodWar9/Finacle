@@ -1,13 +1,11 @@
 import asyncio
 import json
-import asyncpg
-import structlog
-import tempfile
 import os
 import subprocess
-import uuid
-from datetime import datetime
+import tempfile
 
+import asyncpg
+import structlog
 from aiokafka import AIOKafkaProducer
 
 from app.config import get_settings
@@ -74,8 +72,10 @@ class SettlementProcessor:
                 logger.info("settlement_completed", batch_id=batch_id, exceptions=exception_count)
             except Exception as e:
                 await conn.execute(
-                    "UPDATE settlement_files SET status = 'FAILED', error_message = $1, completed_at = NOW() WHERE batch_id = $2",
-                    str(e), batch_id
+                    "UPDATE settlement_files SET status = 'FAILED', "
+                    "error_message = $1, completed_at = NOW() "
+                    "WHERE batch_id = $2",
+                    str(e), batch_id,
                 )
                 logger.error("settlement_failed", batch_id=batch_id, error=str(e))
                 raise
@@ -122,12 +122,15 @@ class SettlementProcessor:
         """Query exceptions written by the recon engine and publish Kafka events."""
         async with self.pg_pool.acquire() as conn:
             summary = await conn.fetchrow(
-                "SELECT matched_count, exception_count FROM reconciliation_batch_summary WHERE batch_id = $1",
-                batch_id
+                "SELECT matched_count, exception_count "
+                "FROM reconciliation_batch_summary WHERE batch_id = $1",
+                batch_id,
             )
             exceptions = await conn.fetch(
-                "SELECT exception_id, exception_type, ledger_transaction_id FROM reconciliation_exceptions WHERE batch_id = $1",
-                batch_id
+                "SELECT exception_id, exception_type, "
+                "ledger_transaction_id "
+                "FROM reconciliation_exceptions WHERE batch_id = $1",
+                batch_id,
             )
 
         for exc in exceptions:

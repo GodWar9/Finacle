@@ -1,7 +1,7 @@
-import time
 import redis.asyncio as redis
 from fastapi import HTTPException, Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
+
 from app.config import get_settings
 from app.metrics import RATE_LIMIT_EXCEEDED
 

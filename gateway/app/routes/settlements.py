@@ -1,11 +1,9 @@
-from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File, Form
-from uuid import UUID
-from typing import Optional
+import uuid
+
 import structlog
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 
 from app.auth import get_current_merchant
-
-import uuid
 
 logger = structlog.get_logger()
 router = APIRouter(prefix="/api/v1", tags=["settlements"])
@@ -19,7 +17,7 @@ async def _get_pool():
 @router.post("/settlements/upload", status_code=status.HTTP_202_ACCEPTED)
 async def upload_settlement_file(
     file: UploadFile = File(...),
-    batch_id: Optional[str] = Form(None),
+    batch_id: str | None = Form(None),
     merchant_id: str = Depends(get_current_merchant),
 ):
     """Upload a bank settlement file for processing"""
@@ -53,8 +51,10 @@ async def get_settlement_status(
     """Get settlement processing status"""
     pool = await _get_pool()
     row = await pool.fetchrow(
-        "SELECT batch_id, filename, status, processed_count, failed_count, created_at, completed_at FROM settlement_files WHERE batch_id = $1",
-        batch_id
+        "SELECT batch_id, filename, status, processed_count, "
+        "failed_count, created_at, completed_at "
+        "FROM settlement_files WHERE batch_id = $1",
+        batch_id,
     )
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Settlement batch not found")

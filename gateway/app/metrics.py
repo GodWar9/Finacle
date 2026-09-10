@@ -1,7 +1,8 @@
-from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
-from fastapi import Response
-from starlette.middleware.base import BaseHTTPMiddleware
 import time
+
+from fastapi import Response
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
+from starlette.middleware.base import BaseHTTPMiddleware
 
 REQUEST_COUNT = Counter(
     "http_requests_total",
@@ -52,7 +53,7 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         ACTIVE_CONNECTIONS.inc()
         start_time = time.time()
-        
+
         try:
             response = await call_next(request)
             REQUEST_COUNT.labels(

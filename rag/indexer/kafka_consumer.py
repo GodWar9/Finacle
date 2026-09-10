@@ -1,12 +1,11 @@
 import asyncio
 import json
+
 import structlog
 from aiokafka import AIOKafkaConsumer
-from typing import Optional
-
 from app.config import get_settings
+from app.db import get_pool, index_document
 from app.embedding import embed_text
-from app.db import index_document, get_pool
 
 logger = structlog.get_logger()
 settings = get_settings()
@@ -78,14 +77,12 @@ async def consume_ledger_events():
                 event = json.loads(msg.value.decode())
                 topic = msg.topic
                 
-                if topic == "ledger.transaction.posted":
-                    await index_document_from_event(pool, event, "TXN_NARRATIVE", event["transaction_id"])
-                elif topic == "ledger.transaction.reversed":
+                if topic == "ledger.transaction.posted" or topic == "ledger.transaction.reversed":
                     await index_document_from_event(pool, event, "TXN_NARRATIVE", event["transaction_id"])
                 elif topic == "reconciliation.exception.raised":
                     await index_document_from_event(pool, event, "RECONCILIATION_EXCEPTION", event["exception_id"])
                     
-            except Exception as e:
+            except (json.JSONDecodeError, KeyError, ValueError) as e:
                 logger.error("event_processing_failed", topic=msg.topic, error=str(e))
     finally:
         await consumer.stop()

@@ -1,9 +1,8 @@
 import hashlib
 import hmac
-import time
+
 import structlog
-from typing import Optional
-from fastapi import Request, HTTPException, status, Depends
+from fastapi import HTTPException, Request, status
 from fastapi.security import APIKeyHeader
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -48,7 +47,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         request.state.merchant_id = merchant_id
         request.state.api_key = api_key
-        
+
         return await call_next(request)
 
 async def get_current_merchant(request: Request) -> str:

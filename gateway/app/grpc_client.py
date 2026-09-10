@@ -1,7 +1,7 @@
+import time
+
 import grpc
 import structlog
-import time
-from typing import Optional
 
 from app.config import get_settings
 from app.metrics import GRPC_CALLS, GRPC_LATENCY
@@ -9,14 +9,15 @@ from app.metrics import GRPC_CALLS, GRPC_LATENCY
 logger = structlog.get_logger()
 settings = get_settings()
 
-import ledger_pb2
-import ledger_pb2_grpc
+import ledger_pb2  # noqa: E402
+import ledger_pb2_grpc  # noqa: E402
+
 
 class LedgerGrpcClient:
     def __init__(self, address: str):
         self.address = address
-        self.channel: Optional[grpc.aio.Channel] = None
-        self.stub: Optional[ledger_pb2_grpc.LedgerCoreStub] = None
+        self.channel: grpc.aio.Channel | None = None
+        self.stub: ledger_pb2_grpc.LedgerCoreStub | None = None
 
     async def connect(self):
         self.channel = grpc.aio.insecure_channel(self.address)
@@ -43,7 +44,7 @@ class LedgerGrpcClient:
     async def post_transaction(self, request: ledger_pb2.PostTransactionRequest) -> ledger_pb2.PostTransactionResponse:
         if not self.stub:
             raise RuntimeError("gRPC client not connected")
-        return await self._call_with_metrics("PostTransaction", 
+        return await self._call_with_metrics("PostTransaction",
             lambda: self.stub.PostTransaction(request, timeout=5.0))
 
     async def get_balance(self, request: ledger_pb2.GetBalanceRequest) -> ledger_pb2.GetBalanceResponse:
@@ -52,13 +53,15 @@ class LedgerGrpcClient:
         return await self._call_with_metrics("GetBalance",
             lambda: self.stub.GetBalance(request, timeout=2.0))
 
-    async def reverse_transaction(self, request: ledger_pb2.ReverseTransactionRequest) -> ledger_pb2.PostTransactionResponse:
+    async def reverse_transaction(
+        self, request: ledger_pb2.ReverseTransactionRequest
+    ) -> ledger_pb2.PostTransactionResponse:
         if not self.stub:
             raise RuntimeError("gRPC client not connected")
         return await self._call_with_metrics("ReverseTransaction",
             lambda: self.stub.ReverseTransaction(request, timeout=5.0))
 
-grpc_client: Optional[LedgerGrpcClient] = None
+grpc_client: LedgerGrpcClient | None = None
 
 async def get_grpc_client() -> LedgerGrpcClient:
     global grpc_client

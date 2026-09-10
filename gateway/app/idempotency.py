@@ -1,16 +1,16 @@
 import hashlib
 import json
-import time
-from typing import Optional, Dict, Any
-import redis.asyncio as redis
+from typing import Any
+
 import asyncpg
+import redis.asyncio as redis
 import structlog
-from fastapi import Request, Response, HTTPException, status
+from fastapi import HTTPException, Request, Response, status
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
 from app.config import get_settings
-from app.metrics import IDEMPOTENCY_REPLAYS, IDEMPOTENCY_CONFLICTS
+from app.metrics import IDEMPOTENCY_CONFLICTS, IDEMPOTENCY_REPLAYS
 
 logger = structlog.get_logger()
 settings = get_settings()
@@ -106,19 +106,19 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
 
         try:
             response = await call_next(request)
-            
+
             if response.status_code < 500:
                 response_body = b""
                 async for chunk in response.body_iterator:
                     response_body += chunk
-                
+
                 try:
                     response_data = json.loads(response_body)
                 except json.JSONDecodeError:
                     response_data = {"raw": response_body.decode()}
-                
+
                 await self.cache_response(idempotency_key, req_hash, response_data, response.status_code)
-                
+
                 return Response(
                     content=response_body,
                     status_code=response.status_code,
@@ -129,7 +129,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         finally:
             await self.redis.delete(lock_key)
 
-    async def fetch_idempotency_record(self, key: str) -> Optional[Dict[str, Any]]:
+    async def fetch_idempotency_record(self, key: str) -> dict[str, Any] | None:
         async with self.pg_pool.acquire() as conn:
             row = await conn.fetchrow(
                 "SELECT request_hash, response_body, status_code FROM idempotency_records "
@@ -146,12 +146,14 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
             "response_body": response_body,
             "status_code": status_code
         }
-        
+
         await self.redis.set(f"idem:{key}", json.dumps(cache_data), ex=IDEMPOTENCY_TTL_SECONDS)
-        
+
         async with self.pg_pool.acquire() as conn:
             await conn.execute(
-                """INSERT INTO idempotency_records (idempotency_key, request_hash, response_body, status_code, expires_at)
+                """INSERT INTO idempotency_records
+                   (idempotency_key, request_hash, response_body,
+                    status_code, expires_at)
                    VALUES ($1, $2, $3, $4, NOW() + INTERVAL '24 hours')
                    ON CONFLICT (idempotency_key) DO UPDATE SET
                    request_hash = EXCLUDED.request_hash,

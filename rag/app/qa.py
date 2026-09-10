@@ -1,9 +1,9 @@
+
 import structlog
-from typing import List, Optional
 from openai import AsyncOpenAI
 
 from app.config import get_settings
-from app.db import search_documents, get_pool
+from app.db import get_pool, search_documents
 from app.models.schemas import AskRequest, AskResponse, SourceCitation
 
 logger = structlog.get_logger()
@@ -80,6 +80,6 @@ Question: {request.question}
     finally:
         await pool.close()
 
-async def embed_text(text: str) -> List[float]:
+async def embed_text(text: str) -> list[float]:
     from app.embedding import embed_text as embed_fn
     return await embed_fn(text)

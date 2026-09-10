@@ -1,7 +1,8 @@
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
-from app.db import search_documents, index_document
+import pytest
+from app.db import index_document, search_documents
+
 
 @pytest.fixture
 def mock_pool():

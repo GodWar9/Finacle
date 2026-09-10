@@ -1,6 +1,7 @@
-from pydantic import BaseModel, Field
-from typing import Optional, List
 from uuid import UUID
+
+from pydantic import BaseModel, Field
+
 
 class LedgerEntry(BaseModel):
     account_id: UUID
@@ -10,9 +11,9 @@ class LedgerEntry(BaseModel):
 
 class PostTransactionRequest(BaseModel):
     transaction_type: str
-    reference_id: Optional[str] = None
-    entries: List[LedgerEntry] = Field(min_length=2)
-    narrative: Optional[str] = None
+    reference_id: str | None = None
+    entries: list[LedgerEntry] = Field(min_length=2)
+    narrative: str | None = None
 
 class PostTransactionResponse(BaseModel):
     transaction_id: UUID

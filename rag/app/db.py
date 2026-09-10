@@ -1,6 +1,8 @@
-import asyncpg
-from typing import List, Optional, Dict, Any
+from typing import Any
 from uuid import UUID
+
+import asyncpg
+
 from app.config import get_settings
 
 settings = get_settings()
@@ -23,7 +25,7 @@ async def index_document(
     source_type: str,
     source_ref: str,
     content: str,
-    embedding: List[float]
+    embedding: list[float]
 ) -> UUID:
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -36,10 +38,10 @@ async def index_document(
 
 async def search_documents(
     pool: asyncpg.Pool,
-    query_embedding: List[float],
-    source_types: Optional[List[str]] = None,
+    query_embedding: list[float],
+    source_types: list[str] | None = None,
     limit: int = 8
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     async with pool.acquire() as conn:
         if source_types:
             placeholders = ",".join([f"${i+2}" for i in range(len(source_types))])
@@ -69,7 +71,7 @@ async def get_document_by_ref(
     pool: asyncpg.Pool,
     source_type: str,
     source_ref: str
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT * FROM rag_documents WHERE source_type = $1 AND source_ref = $2",
