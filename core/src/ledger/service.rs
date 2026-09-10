@@ -232,38 +232,6 @@ pub async fn reverse_transaction(
     Ok(result)
 }
 
-pub async fn run_balance_auditor(pool: &PgPool) -> Result<Vec<(Uuid, i64, i64)>, LedgerError> {
-    let mismatches = sqlx::query!(
-        r#"
-        SELECT a.account_id, 
-               COALESCE(SUM(CASE WHEN le.direction = 'DEBIT' THEN le.amount_minor ELSE -le.amount_minor END), 0)::bigint as "derived_balance!",
-               COALESCE(ab.balance_minor, 0)::bigint as "materialized_balance!"
-        FROM accounts a
-        LEFT JOIN ledger_entries le ON le.account_id = a.account_id
-        LEFT JOIN account_balances ab ON ab.account_id = a.account_id
-        WHERE a.status = 'ACTIVE'
-        GROUP BY a.account_id, ab.balance_minor
-        HAVING COALESCE(SUM(CASE WHEN le.direction = 'DEBIT' THEN le.amount_minor ELSE -le.amount_minor END), 0) != COALESCE(ab.balance_minor, 0)
-        "#
-    )
-    .fetch_all(pool)
-    .await?;
-
-    let results: Vec<(Uuid, i64, i64)> = mismatches
-        .into_iter()
-        .map(|r| (r.account_id, r.derived_balance, r.materialized_balance))
-        .collect();
-
-    for (account_id, derived, materialized) in &results {
-        error!(
-            "BALANCE MISMATCH for account {}: derived={}, materialized={}",
-            account_id, derived, materialized
-        );
-    }
-
-    Ok(results)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

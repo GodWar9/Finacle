@@ -15,6 +15,12 @@ SCOPE_FILTERS = {
 }
 
 async def answer_question(request: AskRequest) -> AskResponse:
+    if not settings.openai_api_key:
+        return AskResponse(
+            answer="OpenAI API key not configured. Set OPENAI_API_KEY to enable RAG queries.",
+            sources=[],
+        )
+
     pool = await get_pool()
     
     try:
@@ -51,17 +57,14 @@ If the sources don't contain the answer, say so explicitly — never guess.
 Question: {request.question}
 """
         
-        if not settings.openai_api_key:
-            answer = "OpenAI API key not configured. Cannot generate answer."
-        else:
-            client = AsyncOpenAI(api_key=settings.openai_api_key)
-            response = await client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.1,
-                max_tokens=500,
-            )
-            answer = response.choices[0].message.content
+        client = AsyncOpenAI(api_key=settings.openai_api_key)
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1,
+            max_tokens=500,
+        )
+        answer = response.choices[0].message.content
         
         sources = [
             SourceCitation(
