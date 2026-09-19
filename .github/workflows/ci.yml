@@ -22,6 +22,26 @@ jobs:
 
   rust-core:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # SQL queries stay compile-time checked against the checked-in offline
+      # cache (SQLX_OFFLINE), while the DB-backed #[sqlx::test] suites run
+      # against the Postgres service at test runtime.
+      SQLX_OFFLINE: "true"
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -35,6 +55,19 @@ jobs:
         working-directory: core
       - run: cargo test
         working-directory: core
+
+  rag-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rag
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: pytest -v
 
   recon-engine:
     runs-on: ubuntu-latest

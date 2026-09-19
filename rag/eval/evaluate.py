@@ -1,4 +1,6 @@
+import argparse
 import asyncio
+import sys
 
 from app.models.schemas import AskRequest
 from app.qa import answer_question
@@ -147,5 +149,27 @@ async def run_evaluation():
     return results
 
 
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Run the RAG evaluation set")
+    parser.add_argument(
+        "--min-pass-rate",
+        type=float,
+        default=0.0,
+        help="Exit non-zero when the pass rate falls below this percentage",
+    )
+    args = parser.parse_args()
+
+    results = asyncio.run(run_evaluation())
+    if not args.min_pass_rate:
+        return
+
+    passed = sum(1 for r in results if r["passed"])
+    total = len(results)
+    rate = passed / total * 100
+    if rate < args.min_pass_rate:
+        print(f"FAIL: pass rate {rate:.1f}% below threshold {args.min_pass_rate:.0f}%")
+        sys.exit(1)
+
+
 if __name__ == "__main__":
-    asyncio.run(run_evaluation())
+    main()

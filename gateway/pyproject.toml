@@ -32,6 +32,7 @@ dev = [
     "pytest-cov>=4.1",
     "httpx>=0.26",
     "fakeredis>=2.20",
+    "aiohttp>=3.9",
 ]
 
 [tool.pytest.ini_options]

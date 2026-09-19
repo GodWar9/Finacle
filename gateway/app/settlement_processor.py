@@ -3,6 +3,7 @@ import json
 import os
 import subprocess
 import tempfile
+from datetime import UTC, datetime, timedelta
 
 import asyncpg
 import structlog
@@ -14,6 +15,11 @@ logger = structlog.get_logger()
 settings = get_settings()
 
 RECON_ENGINE_PATH = settings.recon_engine_path
+
+# A batch stays PROCESSING only while a worker is alive; the recon engine
+# itself times out at 300s, so anything stuck longer than this was orphaned by
+# a crashed worker and must be reclaimed.
+REQUEUE_STALE_AFTER_SECONDS = 360
 
 
 class SettlementProcessor:
@@ -38,6 +44,8 @@ class SettlementProcessor:
         logger.info("settlement_processor_stopped")
 
     async def process_pending(self):
+        await self.requeue_stale_processing()
+
         async with self.pg_pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
@@ -79,6 +87,24 @@ class SettlementProcessor:
                 )
                 logger.error("settlement_failed", batch_id=batch_id, error=str(e))
                 raise
+
+    async def requeue_stale_processing(self):
+        """Reclaim batches orphaned by a crashed worker so they are retried."""
+        async with self.pg_pool.acquire() as conn:
+            cutoff = datetime.now(UTC) - timedelta(seconds=REQUEUE_STALE_AFTER_SECONDS)
+            rows = await conn.fetch(
+                """
+                UPDATE settlement_files
+                SET status = 'UPLOADED'
+                WHERE status = 'PROCESSING'
+                  AND started_at IS NOT NULL
+                  AND started_at < $1
+                RETURNING batch_id
+                """,
+                cutoff,
+            )
+            for row in rows:
+                logger.warning("requeued_stale_settlement", batch_id=row["batch_id"])
 
     async def run_reconciliation(self, batch_id: str, bank_file_content: bytes) -> int:
         """Run the C++ recon engine, then publish Kafka events for any exceptions."""
