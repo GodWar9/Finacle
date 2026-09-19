@@ -59,15 +59,14 @@ class SettlementProcessor:
             logger.info("processing_settlement", batch_id=batch_id, filename=filename)
 
             await conn.execute(
-                "UPDATE settlement_files SET status = 'PROCESSING', started_at = NOW() WHERE batch_id = $1",
-                batch_id
+                "UPDATE settlement_files SET status = 'PROCESSING', started_at = NOW() WHERE batch_id = $1", batch_id
             )
 
             try:
                 exception_count = await self.run_reconciliation(batch_id, content)
                 await conn.execute(
                     "UPDATE settlement_files SET status = 'COMPLETED', completed_at = NOW() WHERE batch_id = $1",
-                    batch_id
+                    batch_id,
                 )
                 logger.info("settlement_completed", batch_id=batch_id, exceptions=exception_count)
             except Exception as e:
@@ -75,7 +74,8 @@ class SettlementProcessor:
                     "UPDATE settlement_files SET status = 'FAILED', "
                     "error_message = $1, completed_at = NOW() "
                     "WHERE batch_id = $2",
-                    str(e), batch_id,
+                    str(e),
+                    batch_id,
                 )
                 logger.error("settlement_failed", batch_id=batch_id, error=str(e))
                 raise
@@ -122,8 +122,7 @@ class SettlementProcessor:
         """Query exceptions written by the recon engine and publish Kafka events."""
         async with self.pg_pool.acquire() as conn:
             summary = await conn.fetchrow(
-                "SELECT matched_count, exception_count "
-                "FROM reconciliation_batch_summary WHERE batch_id = $1",
+                "SELECT matched_count, exception_count FROM reconciliation_batch_summary WHERE batch_id = $1",
                 batch_id,
             )
             exceptions = await conn.fetch(
@@ -158,10 +157,9 @@ class SettlementProcessor:
                 value=json.dumps(batch_event).encode(),
             )
 
-        logger.info("recon_events_published",
-                     batch_id=batch_id,
-                     exceptions=len(exceptions),
-                     has_summary=summary is not None)
+        logger.info(
+            "recon_events_published", batch_id=batch_id, exceptions=len(exceptions), has_summary=summary is not None
+        )
         return len(exceptions)
 
     async def generate_ledger_export(self, batch_id: str) -> str:
@@ -180,10 +178,10 @@ class SettlementProcessor:
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             for row in rows:
-                ref = str(row['transaction_id'])[:20].ljust(20)
-                amt = str(row['amount_minor']).rjust(13)
-                ccy = row['currency'][:3].ljust(3)
-                sts = row['status'][:7].ljust(7)
+                ref = str(row["transaction_id"])[:20].ljust(20)
+                amt = str(row["amount_minor"]).rjust(13)
+                ccy = row["currency"][:3].ljust(3)
+                sts = row["status"][:7].ljust(7)
                 line = f"{ref}{amt}{ccy}{sts}"
                 f.write(line + "\n")
             ledger_export_path = f.name
@@ -206,5 +204,6 @@ async def run_settlement_processor(poll_interval: int = 10):
 
 if __name__ == "__main__":
     import os
+
     poll_interval = int(os.getenv("POLL_INTERVAL", "10"))
     asyncio.run(run_settlement_processor(poll_interval))

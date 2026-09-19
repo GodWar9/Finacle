@@ -11,19 +11,21 @@ from app.routes import reconciliation
 async def test_list_reconciliation_exceptions():
     mock_pool = AsyncMock()
     exception_id = uuid4()
-    mock_pool.fetch = AsyncMock(return_value=[
-        {
-            "exception_id": exception_id,
-            "batch_id": "batch-001",
-            "exception_type": "AMOUNT_MISMATCH",
-            "ledger_transaction_id": uuid4(),
-            "bank_reference": "ref-123",
-            "ledger_amount_minor": 10000,
-            "bank_amount_minor": 9900,
-            "resolved": False,
-            "detected_at": datetime(2026, 1, 1, 0, 0, 0),
-        }
-    ])
+    mock_pool.fetch = AsyncMock(
+        return_value=[
+            {
+                "exception_id": exception_id,
+                "batch_id": "batch-001",
+                "exception_type": "AMOUNT_MISMATCH",
+                "ledger_transaction_id": uuid4(),
+                "bank_reference": "ref-123",
+                "ledger_amount_minor": 10000,
+                "bank_amount_minor": 9900,
+                "resolved": False,
+                "detected_at": datetime(2026, 1, 1, 0, 0, 0),
+            }
+        ]
+    )
 
     with patch("app.routes.reconciliation._get_pool", return_value=mock_pool):
         result = await reconciliation.list_reconciliation_exceptions("merchant_1")

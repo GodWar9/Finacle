@@ -17,9 +17,11 @@ settings = get_settings()
 
 IDEMPOTENCY_TTL_SECONDS = settings.idempotency_ttl_seconds
 
+
 def canonical_hash(body: dict) -> str:
     canonical = json.dumps(body, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode()).hexdigest()
+
 
 class IdempotencyMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, redis_client: redis.Redis = None, pg_pool: asyncpg.Pool = None):
@@ -35,6 +37,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         if self._redis is not None:
             return self._redis
         import app.main as main_module
+
         return main_module.redis_client
 
     @property
@@ -42,6 +45,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         if self._pg_pool is not None:
             return self._pg_pool
         import app.main as main_module
+
         return main_module.pg_pool
 
     async def dispatch(self, request: Request, call_next):
@@ -51,8 +55,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         idempotency_key = request.headers.get("Idempotency-Key")
         if not idempotency_key:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Idempotency-Key header is required for POST"
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Idempotency-Key header is required for POST"
             )
 
         # The Idempotency-Key must be computed over the exact request the
@@ -73,23 +76,18 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
             if cached_obj["request_hash"] != req_hash:
                 IDEMPOTENCY_CONFLICTS.inc()
                 raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="Idempotency-Key reused with a different request body"
+                    status_code=status.HTTP_409_CONFLICT, detail="Idempotency-Key reused with a different request body"
                 )
             IDEMPOTENCY_REPLAYS.labels(source="redis").inc()
             logger.info("idempotency_replay_redis", key=idempotency_key)
-            return JSONResponse(
-                cached_obj["response_body"],
-                status_code=cached_obj["status_code"]
-            )
+            return JSONResponse(cached_obj["response_body"], status_code=cached_obj["status_code"])
 
         row = await self.fetch_idempotency_record(idempotency_key)
         if row:
             if row["request_hash"] != req_hash:
                 IDEMPOTENCY_CONFLICTS.inc()
                 raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="Idempotency-Key reused with a different request body"
+                    status_code=status.HTTP_409_CONFLICT, detail="Idempotency-Key reused with a different request body"
                 )
             await self.redis.set(cache_key, json.dumps(row), ex=IDEMPOTENCY_TTL_SECONDS)
             IDEMPOTENCY_REPLAYS.labels(source="postgres").inc()
@@ -101,7 +99,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         if not got_lock:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Request with this Idempotency-Key is already being processed"
+                detail="Request with this Idempotency-Key is already being processed",
             )
 
         try:
@@ -123,7 +121,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
                     content=response_body,
                     status_code=response.status_code,
                     headers=dict(response.headers),
-                    media_type=response.media_type
+                    media_type=response.media_type,
                 )
             return response
         finally:
@@ -134,18 +132,14 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
             row = await conn.fetchrow(
                 "SELECT request_hash, response_body, status_code FROM idempotency_records "
                 "WHERE idempotency_key = $1 AND expires_at > NOW()",
-                key
+                key,
             )
             if row:
                 return dict(row)
         return None
 
     async def cache_response(self, key: str, req_hash: str, response_body: dict, status_code: int):
-        cache_data = {
-            "request_hash": req_hash,
-            "response_body": response_body,
-            "status_code": status_code
-        }
+        cache_data = {"request_hash": req_hash, "response_body": response_body, "status_code": status_code}
 
         await self.redis.set(f"idem:{key}", json.dumps(cache_data), ex=IDEMPOTENCY_TTL_SECONDS)
 
@@ -160,5 +154,8 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
                    response_body = EXCLUDED.response_body,
                    status_code = EXCLUDED.status_code,
                    expires_at = EXCLUDED.expires_at""",
-                key, req_hash, json.dumps(response_body), status_code
+                key,
+                req_hash,
+                json.dumps(response_body),
+                status_code,
             )

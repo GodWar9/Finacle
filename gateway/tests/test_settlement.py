@@ -7,8 +7,10 @@ import pytest
 class MockAsyncCtx:
     def __init__(self, conn):
         self.conn = conn
+
     async def __aenter__(self):
         return self.conn
+
     async def __aexit__(self, *a):
         return None
 
@@ -43,17 +45,21 @@ async def test_publish_recon_events():
     mock_conn = AsyncMock()
     mock_pool.acquire = MagicMock(return_value=MockAsyncCtx(mock_conn))
 
-    mock_conn.fetchrow = AsyncMock(return_value={
-        "matched_count": 100,
-        "exception_count": 2,
-    })
-    mock_conn.fetch = AsyncMock(return_value=[
-        {
-            "exception_id": exception_id,
-            "exception_type": "AMOUNT_MISMATCH",
-            "ledger_transaction_id": ledger_txn_id,
+    mock_conn.fetchrow = AsyncMock(
+        return_value={
+            "matched_count": 100,
+            "exception_count": 2,
         }
-    ])
+    )
+    mock_conn.fetch = AsyncMock(
+        return_value=[
+            {
+                "exception_id": exception_id,
+                "exception_type": "AMOUNT_MISMATCH",
+                "ledger_transaction_id": ledger_txn_id,
+            }
+        ]
+    )
 
     mock_kafka = AsyncMock()
 

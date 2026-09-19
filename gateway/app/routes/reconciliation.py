@@ -1,4 +1,3 @@
-
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -10,6 +9,7 @@ router = APIRouter(prefix="/api/v1", tags=["reconciliation"])
 
 async def _get_pool():
     from app.main import pg_pool
+
     return pg_pool
 
 

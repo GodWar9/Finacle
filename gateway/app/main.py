@@ -26,7 +26,7 @@ structlog.configure(
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
         structlog.processors.UnicodeDecoder(),
-        structlog.processors.JSONRenderer()
+        structlog.processors.JSONRenderer(),
     ],
     context_class=dict,
     logger_factory=structlog.stdlib.LoggerFactory(),
@@ -40,6 +40,7 @@ settings = get_settings()
 
 pg_pool: asyncpg.Pool = None
 redis_client: redis.Redis = None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -65,6 +66,7 @@ async def lifespan(app: FastAPI):
     await redis_client.close()
     client = await get_grpc_client()
     await client.close()
+
 
 app = FastAPI(
     title="Ledger API Gateway",

@@ -10,6 +10,7 @@ from app.rate_limit import RateLimitMiddleware
 
 settings = get_settings()
 
+
 @pytest.fixture
 def mock_redis():
     redis = AsyncMock()
@@ -19,6 +20,7 @@ def mock_redis():
     redis.expire = AsyncMock(return_value=True)
     redis.delete = AsyncMock(return_value=True)
     return redis
+
 
 @pytest.fixture
 def mock_pg_pool():
@@ -30,11 +32,13 @@ def mock_pg_pool():
     class MockAsyncCM:
         async def __aenter__(self):
             return conn
+
         async def __aexit__(self, *args):
             return None
 
     pool.acquire = MagicMock(return_value=MockAsyncCM())
     return pool
+
 
 class AsyncIterator:
     def __init__(self, items):
@@ -51,6 +55,7 @@ class AsyncIterator:
         self.index += 1
         return item
 
+
 @pytest.mark.asyncio
 async def test_full_idempotency_flow(mock_redis, mock_pg_pool):
     """Test complete idempotency flow: first request -> cache -> replay"""
@@ -61,9 +66,9 @@ async def test_full_idempotency_flow(mock_redis, mock_pg_pool):
         "reference_id": "order_123",
         "entries": [
             {"account_id": str(uuid4()), "direction": "DEBIT", "amount_minor": 10000, "currency": "INR"},
-            {"account_id": str(uuid4()), "direction": "CREDIT", "amount_minor": 10000, "currency": "INR"}
+            {"account_id": str(uuid4()), "direction": "CREDIT", "amount_minor": 10000, "currency": "INR"},
         ],
-        "narrative": "Test payment"
+        "narrative": "Test payment",
     }
 
     idempotency_key = "idem_test_123"
@@ -90,6 +95,7 @@ async def test_full_idempotency_flow(mock_redis, mock_pg_pool):
     mock_redis.set.assert_called()
     mock_pg_pool.acquire.assert_called()
 
+
 @pytest.mark.asyncio
 async def test_rate_limit_enforcement(mock_redis):
     """Test rate limiting blocks after threshold"""
@@ -114,6 +120,7 @@ async def test_rate_limit_enforcement(mock_redis):
 
     assert exc_info.value.status_code == 429
 
+
 def test_canonical_hash_properties():
     """Test canonical hash is deterministic and order-independent"""
     body1 = {"a": 1, "b": {"c": 2, "d": [3, 4]}}
@@ -128,12 +135,14 @@ def test_canonical_hash_properties():
     assert hash1 != hash3
     assert len(hash1) == 64
 
+
 def test_idempotency_conflict_detection():
     """Test that same key with different body is rejected"""
     body1 = {"amount": 100, "currency": "INR"}
     body2 = {"amount": 200, "currency": "INR"}
 
     assert canonical_hash(body1) != canonical_hash(body2)
+
 
 @pytest.mark.asyncio
 async def test_middleware_resolves_live_clients_from_app_main(monkeypatch):
@@ -156,6 +165,7 @@ async def test_middleware_resolves_live_clients_from_app_main(monkeypatch):
 
     rate = RateLimitMiddleware(None, None)
     assert rate.redis is fake_main.redis_client
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

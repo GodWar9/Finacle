@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     kafka_brokers: str = "localhost:9092"
     webhook_secret: str = "webhook-secret-change-in-production"
 
+
 @lru_cache
 def get_settings() -> Settings:
     return Settings()

@@ -1,4 +1,3 @@
-
 import ledger_pb2
 import structlog
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
@@ -11,11 +10,12 @@ logger = structlog.get_logger()
 router = APIRouter(prefix="/api/v1/webhooks", tags=["webhooks"])
 settings = get_settings()
 
+
 @router.post("/payment-gateway")
 async def payment_gateway_webhook(
     request: Request,
     x_signature: str = Header(..., alias="X-Signature"),
-    merchant_id: str = Depends(get_current_merchant)
+    merchant_id: str = Depends(get_current_merchant),
 ):
     payload = await request.body()
 
@@ -26,6 +26,7 @@ async def payment_gateway_webhook(
 
     try:
         import json
+
         data = json.loads(payload)
     except json.JSONDecodeError:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid JSON")
@@ -77,11 +78,12 @@ async def payment_gateway_webhook(
         logger.error("webhook_payment_failed", error=str(e), payment_id=payment_id)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Failed to post transaction: {e}")
 
+
 @router.post("/reconciliation")
 async def reconciliation_webhook(
     request: Request,
     x_signature: str = Header(..., alias="X-Signature"),
-    merchant_id: str = Depends(get_current_merchant)
+    merchant_id: str = Depends(get_current_merchant),
 ):
     payload = await request.body()
 
@@ -91,6 +93,7 @@ async def reconciliation_webhook(
 
     try:
         import json
+
         data = json.loads(payload)
     except json.JSONDecodeError:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid JSON")

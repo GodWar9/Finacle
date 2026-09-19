@@ -11,6 +11,7 @@ router = APIRouter(prefix="/api/v1", tags=["settlements"])
 
 async def _get_pool():
     from app.main import pg_pool
+
     return pg_pool
 
 
@@ -30,7 +31,10 @@ async def upload_settlement_file(
     await pool.execute(
         """INSERT INTO settlement_files (batch_id, filename, content, status, uploaded_by)
            VALUES ($1, $2, $3, 'UPLOADED', $4)""",
-        batch_id, file.filename, content, merchant_id
+        batch_id,
+        file.filename,
+        content,
+        merchant_id,
     )
 
     logger.info("settlement_file_uploaded", batch_id=batch_id, filename=file.filename, merchant_id=merchant_id)

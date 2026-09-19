@@ -31,6 +31,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if self._redis is not None:
             return self._redis
         import app.main as main_module
+
         return main_module.redis_client
 
     async def dispatch(self, request: Request, call_next):

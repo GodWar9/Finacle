@@ -10,9 +10,11 @@ logger = structlog.get_logger()
 settings = get_settings()
 router = APIRouter(tags=["health"])
 
+
 @router.get("/health", response_model=HealthResponse)
 async def health_check():
     return HealthResponse(status="healthy", service="gateway")
+
 
 @router.get("/health/ready")
 async def readiness_check():

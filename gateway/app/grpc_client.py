@@ -44,24 +44,25 @@ class LedgerGrpcClient:
     async def post_transaction(self, request: ledger_pb2.PostTransactionRequest) -> ledger_pb2.PostTransactionResponse:
         if not self.stub:
             raise RuntimeError("gRPC client not connected")
-        return await self._call_with_metrics("PostTransaction",
-            lambda: self.stub.PostTransaction(request, timeout=5.0))
+        return await self._call_with_metrics("PostTransaction", lambda: self.stub.PostTransaction(request, timeout=5.0))
 
     async def get_balance(self, request: ledger_pb2.GetBalanceRequest) -> ledger_pb2.GetBalanceResponse:
         if not self.stub:
             raise RuntimeError("gRPC client not connected")
-        return await self._call_with_metrics("GetBalance",
-            lambda: self.stub.GetBalance(request, timeout=2.0))
+        return await self._call_with_metrics("GetBalance", lambda: self.stub.GetBalance(request, timeout=2.0))
 
     async def reverse_transaction(
         self, request: ledger_pb2.ReverseTransactionRequest
     ) -> ledger_pb2.PostTransactionResponse:
         if not self.stub:
             raise RuntimeError("gRPC client not connected")
-        return await self._call_with_metrics("ReverseTransaction",
-            lambda: self.stub.ReverseTransaction(request, timeout=5.0))
+        return await self._call_with_metrics(
+            "ReverseTransaction", lambda: self.stub.ReverseTransaction(request, timeout=5.0)
+        )
+
 
 grpc_client: LedgerGrpcClient | None = None
+
 
 async def get_grpc_client() -> LedgerGrpcClient:
     global grpc_client

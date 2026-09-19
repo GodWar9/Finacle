@@ -17,12 +17,13 @@ from app.models.schemas import (
 logger = structlog.get_logger()
 router = APIRouter(prefix="/api/v1", tags=["transactions"])
 
+
 @router.post("/transactions", response_model=PostTransactionResponse, status_code=status.HTTP_201_CREATED)
 async def post_transaction(
     req: PostTransactionRequest,
     request: Request,
     idempotency_key: str = Header(..., alias="Idempotency-Key"),
-    merchant_id: str = Depends(get_current_merchant)
+    merchant_id: str = Depends(get_current_merchant),
 ):
     client = await get_grpc_client()
 
@@ -32,7 +33,8 @@ async def post_transaction(
             direction=e.direction,
             amount_minor=e.amount_minor,
             currency=e.currency,
-        ) for e in req.entries
+        )
+        for e in req.entries
     ]
 
     grpc_req = ledger_pb2.PostTransactionRequest(
@@ -68,6 +70,7 @@ async def post_transaction(
 
     raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="max retries exceeded")
 
+
 @router.get("/accounts/{account_id}/balance", response_model=GetBalanceResponse)
 async def get_balance(account_id: UUID, merchant_id: str = Depends(get_current_merchant)):
     client = await get_grpc_client()
@@ -88,11 +91,10 @@ async def get_balance(account_id: UUID, merchant_id: str = Depends(get_current_m
         logger.error("grpc_error", error=str(e), code=e.code(), merchant_id=merchant_id)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"ledger core error: {e.details()}")
 
+
 @router.post("/transactions/{transaction_id}/reverse", response_model=PostTransactionResponse)
 async def reverse_transaction(
-    transaction_id: UUID,
-    req: ReverseTransactionRequest,
-    merchant_id: str = Depends(get_current_merchant)
+    transaction_id: UUID, req: ReverseTransactionRequest, merchant_id: str = Depends(get_current_merchant)
 ):
     client = await get_grpc_client()
 

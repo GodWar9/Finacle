@@ -44,11 +44,13 @@ async def test_idempotency_middleware_replay_redis():
     request_body = {"amount": 100, "currency": "INR"}
     req_hash = canonical_hash(request_body)
 
-    mock_redis.get.return_value = json.dumps({
-        "request_hash": req_hash,
-        "response_body": {"transaction_id": "test-id", "status": "POSTED"},
-        "status_code": 201,
-    })
+    mock_redis.get.return_value = json.dumps(
+        {
+            "request_hash": req_hash,
+            "response_body": {"transaction_id": "test-id", "status": "POSTED"},
+            "status_code": 201,
+        }
+    )
 
     middleware = IdempotencyMiddleware(None, mock_redis, mock_pg_pool)
 
@@ -96,11 +98,13 @@ async def test_idempotency_middleware_non_json_body():
     mock_request.state = MagicMock()
 
     cached = {
-        "idem:test-key": json.dumps({
-            "request_hash": hashlib.sha256(raw).hexdigest(),
-            "response_body": {"raw": "cached"},
-            "status_code": 202,
-        })
+        "idem:test-key": json.dumps(
+            {
+                "request_hash": hashlib.sha256(raw).hexdigest(),
+                "response_body": {"raw": "cached"},
+                "status_code": 202,
+            }
+        )
     }
     mock_redis.get.side_effect = lambda k: cached.get(k)
 
@@ -120,11 +124,13 @@ async def test_idempotency_middleware_conflict():
     request_body = {"amount": 100, "currency": "INR"}
     req_hash = canonical_hash(request_body)
 
-    mock_redis.get.return_value = json.dumps({
-        "request_hash": req_hash,
-        "response_body": {"transaction_id": "test-id"},
-        "status_code": 201,
-    })
+    mock_redis.get.return_value = json.dumps(
+        {
+            "request_hash": req_hash,
+            "response_body": {"transaction_id": "test-id"},
+            "status_code": 201,
+        }
+    )
 
     middleware = IdempotencyMiddleware(None, mock_redis, mock_pg_pool)
 

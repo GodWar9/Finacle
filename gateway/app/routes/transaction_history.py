@@ -11,6 +11,7 @@ router = APIRouter(prefix="/api/v1", tags=["transactions"])
 
 async def _get_pool():
     from app.main import pg_pool
+
     return pg_pool
 
 
@@ -80,13 +81,15 @@ async def list_transactions(
                 "created_at": row["created_at"].isoformat(),
                 "entries": [],
             }
-        transactions[txn_id]["entries"].append({
-            "entry_id": row["entry_id"],
-            "account_id": row["account_id"],
-            "direction": row["direction"],
-            "amount_minor": row["amount_minor"],
-            "currency": row["currency"],
-        })
+        transactions[txn_id]["entries"].append(
+            {
+                "entry_id": row["entry_id"],
+                "account_id": row["account_id"],
+                "direction": row["direction"],
+                "amount_minor": row["amount_minor"],
+                "currency": row["currency"],
+            }
+        )
 
     return {
         "transactions": list(transactions.values()),
@@ -111,8 +114,7 @@ async def get_transaction(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
 
     entries = await pool.fetch(
-        "SELECT entry_id, account_id, direction, amount_minor, "
-        "currency FROM ledger_entries WHERE transaction_id = $1",
+        "SELECT entry_id, account_id, direction, amount_minor, currency FROM ledger_entries WHERE transaction_id = $1",
         transaction_id,
     )
 

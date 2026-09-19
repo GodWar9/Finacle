@@ -13,6 +13,7 @@ router = APIRouter(prefix="/api/v1", tags=["accounts"])
 
 async def _get_pool():
     from app.main import pg_pool
+
     return pg_pool
 
 
@@ -38,10 +39,7 @@ class AccountListResponse(BaseModel):
     total: int
 
 
-ACCT_COLS = (
-    "account_id, account_number, account_type, owner_ref, "
-    "currency, status, created_at"
-)
+ACCT_COLS = "account_id, account_number, account_type, owner_ref, currency, status, created_at"
 
 
 @router.post("/accounts", response_model=AccountResponse, status_code=status.HTTP_201_CREATED)
@@ -51,7 +49,10 @@ async def create_account(req: CreateAccountRequest, merchant_id: str = Depends(g
         row = await pool.fetchrow(
             f"INSERT INTO accounts (account_number, account_type, owner_ref, currency) "
             f"VALUES ($1, $2, $3, $4) RETURNING {ACCT_COLS}",
-            req.account_number, req.account_type, req.owner_ref, req.currency,
+            req.account_number,
+            req.account_type,
+            req.owner_ref,
+            req.currency,
         )
         if not row:
             raise HTTPException(status_code=500, detail="Failed to create account")
@@ -98,17 +99,20 @@ async def list_accounts(
     pool = await _get_pool()
     if owner_ref:
         rows = await pool.fetch(
-            f"SELECT {ACCT_COLS} FROM accounts WHERE owner_ref = $1 "
-            f"LIMIT $2 OFFSET $3",
-            owner_ref, limit, offset,
+            f"SELECT {ACCT_COLS} FROM accounts WHERE owner_ref = $1 LIMIT $2 OFFSET $3",
+            owner_ref,
+            limit,
+            offset,
         )
         total = await pool.fetchval(
-            "SELECT COUNT(*) FROM accounts WHERE owner_ref = $1", owner_ref,
+            "SELECT COUNT(*) FROM accounts WHERE owner_ref = $1",
+            owner_ref,
         )
     else:
         rows = await pool.fetch(
             f"SELECT {ACCT_COLS} FROM accounts LIMIT $1 OFFSET $2",
-            limit, offset,
+            limit,
+            offset,
         )
         total = await pool.fetchval("SELECT COUNT(*) FROM accounts")
 
@@ -131,8 +135,7 @@ async def list_accounts(
 async def freeze_account(account_id: UUID, merchant_id: str = Depends(get_current_merchant)):
     pool = await _get_pool()
     row = await pool.fetchrow(
-        f"UPDATE accounts SET status = 'FROZEN' WHERE account_id = $1 "
-        f"RETURNING {ACCT_COLS}",
+        f"UPDATE accounts SET status = 'FROZEN' WHERE account_id = $1 RETURNING {ACCT_COLS}",
         account_id,
     )
     if not row:
@@ -152,8 +155,7 @@ async def freeze_account(account_id: UUID, merchant_id: str = Depends(get_curren
 async def unfreeze_account(account_id: UUID, merchant_id: str = Depends(get_current_merchant)):
     pool = await _get_pool()
     row = await pool.fetchrow(
-        f"UPDATE accounts SET status = 'ACTIVE' WHERE account_id = $1 "
-        f"AND status = 'FROZEN' RETURNING {ACCT_COLS}",
+        f"UPDATE accounts SET status = 'ACTIVE' WHERE account_id = $1 AND status = 'FROZEN' RETURNING {ACCT_COLS}",
         account_id,
     )
     if not row:
