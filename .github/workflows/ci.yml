@@ -18,13 +18,15 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -e ".[dev]"
+      - name: Generate gateway gRPC stubs
+        run: python -m grpc_tools.protoc --proto_path=../core/proto --python_out=. --grpc_python_out=. --pyi_out=. ../core/proto/ledger.proto
       - run: pytest -v
 
   rust-core:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres

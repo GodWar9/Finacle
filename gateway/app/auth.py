@@ -30,7 +30,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 self.api_keys[key.strip()] = merchant_id.strip()
 
     async def dispatch(self, request: Request, call_next):
-        if request.url.path in ["/health", "/health/ready", "/metrics", "/"]:
+        if request.url.path in ["/health", "/health/ready", "/metrics", "/"] or request.url.path.startswith(
+            ("/css/", "/js/", "/data/")
+        ):
             return await call_next(request)
 
         api_key = request.headers.get("X-API-Key")

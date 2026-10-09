@@ -99,6 +99,7 @@ services:
     environment:
       DATABASE_URL: postgresql://ledger_app:dev_only@postgres:5432/ledger
       REDIS_URL: redis://redis:6379
+      API_KEYS: ${API_KEYS:?Set API_KEYS to key:merchant pairs}
       LEDGER_CORE_ADDR: ledger-core:50051
       RUST_LOG: info
 

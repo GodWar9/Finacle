@@ -150,14 +150,10 @@ async def test_middleware_resolves_live_clients_from_app_main(monkeypatch):
     time, when the app.main redis/pg globals are still None placeholders. The
     middleware must therefore resolve the live clients lazily at request time -
     otherwise every POST crashes with 'NoneType' object has no attribute 'get'."""
-    import sys
-    import types
+    from app import main as fake_main
 
-    fake_main = types.SimpleNamespace(
-        redis_client=AsyncMock(),
-        pg_pool=AsyncMock(),
-    )
-    monkeypatch.setitem(sys.modules, "app.main", fake_main)
+    monkeypatch.setattr(fake_main, "redis_client", AsyncMock())
+    monkeypatch.setattr(fake_main, "pg_pool", AsyncMock())
 
     idem = IdempotencyMiddleware(None, None, None)
     assert idem.redis is fake_main.redis_client

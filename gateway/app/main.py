@@ -5,8 +5,9 @@ from pathlib import Path
 import asyncpg
 import redis.asyncio as redis
 import structlog
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import JSONResponse
 
 from app.auth import AuthMiddleware
 from app.config import get_settings
@@ -74,10 +75,22 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(PrometheusMiddleware)
-app.add_middleware(AuthMiddleware)
-app.add_middleware(RateLimitMiddleware, redis_client=redis_client)
+# Starlette executes the last registered middleware first. Authenticate before
+# rate limiting and before any cached response can short-circuit the request.
 app.add_middleware(IdempotencyMiddleware, redis_client=redis_client, pg_pool=pg_pool)
+app.add_middleware(RateLimitMiddleware, redis_client=redis_client)
+app.add_middleware(AuthMiddleware)
+app.add_middleware(PrometheusMiddleware)
+
+
+@app.middleware("http")
+async def middleware_errors(request: Request, call_next):
+    # HTTPException raised by middleware is outside FastAPI's route handler.
+    try:
+        return await call_next(request)
+    except HTTPException as exc:
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code, headers=exc.headers)
+
 
 app.include_router(health.router)
 app.include_router(transactions.router)
