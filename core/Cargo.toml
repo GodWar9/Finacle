@@ -21,6 +21,7 @@ opentelemetry-otlp = { version = "0.15", features = ["tonic"] }
 opentelemetry_sdk = { version = "0.22", features = ["rt-tokio"] }
 rust_decimal = "1.35"
 sha2 = "0.10"
+subtle = "2.6"
 hex = "0.4"
 anyhow = "1.0"
 config = "0.13"
@@ -33,6 +34,7 @@ rdkafka = { version = "0.34", features = ["ssl"], optional = true }
 
 [build-dependencies]
 tonic-build = "0.10"
+protoc-bin-vendored = "3"
 
 [features]
 default = []

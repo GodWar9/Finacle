@@ -31,6 +31,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     sqlx::migrate!("../db/migrations").run(&pool).await?;
     info!("Migrations applied");
 
+    let service_token = std::env::var("LEDGER_SERVICE_TOKEN")
+        .ok()
+        .filter(|token| token.len() >= 32)
+        .expect("LEDGER_SERVICE_TOKEN must contain at least 32 characters");
     let grpc_server = LedgerGrpcServer::new(pool.clone());
 
     #[cfg(feature = "kafka")]
@@ -70,7 +74,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Starting gRPC server on {}", grpc_addr);
 
     tonic::transport::Server::builder()
-        .add_service(LedgerCoreServer::new(grpc_server))
+        .add_service(LedgerCoreServer::with_interceptor(
+            grpc_server,
+            move |request: tonic::Request<()>| {
+                use sha2::{Digest, Sha256};
+                use subtle::ConstantTimeEq;
+                let provided = request
+                    .metadata()
+                    .get("x-ledger-service-token")
+                    .and_then(|value| value.to_str().ok())
+                    .unwrap_or("");
+                let expected = Sha256::digest(service_token.as_bytes());
+                let actual = Sha256::digest(provided.as_bytes());
+                if !bool::from(expected.ct_eq(&actual)) {
+                    return Err(tonic::Status::unauthenticated(
+                        "gateway authentication required",
+                    ));
+                }
+                Ok(request)
+            },
+        ))
         .serve_with_shutdown(grpc_addr, async {
             signal::ctrl_c().await.expect("failed to listen for ctrl-c");
             info!("Shutdown signal received");

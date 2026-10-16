@@ -1,6 +1,7 @@
 import hashlib
 import json
 from typing import Any
+from uuid import uuid4
 
 import asyncpg
 import redis.asyncio as redis
@@ -21,6 +22,11 @@ IDEMPOTENCY_TTL_SECONDS = settings.idempotency_ttl_seconds
 def canonical_hash(body: dict) -> str:
     canonical = json.dumps(body, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode()).hexdigest()
+
+
+def scoped_key(merchant: str, method: str, path: str, key: str) -> str:
+    """Length-delimited JSON avoids collisions between tenant, operation and key."""
+    return "v2:" + hashlib.sha256(json.dumps([merchant, method, path, key], separators=(",", ":")).encode()).hexdigest()
 
 
 class IdempotencyMiddleware(BaseHTTPMiddleware):
@@ -49,7 +55,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         return main_module.pg_pool
 
     async def dispatch(self, request: Request, call_next):
-        if request.method != "POST":
+        if request.method != "POST" or request.url.path.startswith("/portal/") or request.url.path == "/api/v1/rag/ask":
             return await call_next(request)
 
         idempotency_key = request.headers.get("Idempotency-Key")
@@ -57,6 +63,13 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Idempotency-Key header is required for POST"
             )
+
+        if len(idempotency_key) > 200:
+            raise HTTPException(status_code=400, detail="Idempotency-Key must be at most 200 characters")
+        merchant = getattr(request.state, "merchant_id", None)
+        if not isinstance(merchant, str) or not merchant:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        idempotency_key = scoped_key(merchant, request.method, request.url.path, idempotency_key)
 
         # The Idempotency-Key must be computed over the exact request the
         # client sent. JSON bodies are hashed canonically (after parsing);
@@ -95,7 +108,8 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
             return JSONResponse(row["response_body"], status_code=row["status_code"])
 
         lock_key = f"lock:{cache_key}"
-        got_lock = await self.redis.set(lock_key, "1", nx=True, ex=10)
+        lock_token = uuid4().hex
+        got_lock = await self.redis.set(lock_key, lock_token, nx=True, ex=60)
         if not got_lock:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -125,7 +139,12 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
                 )
             return response
         finally:
-            await self.redis.delete(lock_key)
+            await self.redis.eval(
+                "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
+                1,
+                lock_key,
+                lock_token,
+            )
 
     async def fetch_idempotency_record(self, key: str) -> dict[str, Any] | None:
         async with self.pg_pool.acquire() as conn:
@@ -135,7 +154,10 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
                 key,
             )
             if row:
-                return dict(row)
+                record = dict(row)
+                if isinstance(record["response_body"], str):
+                    record["response_body"] = json.loads(record["response_body"])
+                return record
         return None
 
     async def cache_response(self, key: str, req_hash: str, response_body: dict, status_code: int):

@@ -65,7 +65,7 @@ var RenderCopilot = {
     Api.askCopilot(question, this.scope).then(function (result) {
       self.history.push({ role: "assistant", text: result.answer, sources: result.sources });
       self.renderLog();
-    });
+    }).catch(function (error) { self.history.push({ role: "assistant", text: error.message }); self.renderLog(); });
   },
 
   renderLog: function () {
@@ -78,7 +78,7 @@ var RenderCopilot = {
       var sourcesHtml = "";
       if (msg.sources && msg.sources.length > 0) {
         sourcesHtml = '<div class="copilot-sources">' + msg.sources.map(function (s) {
-          return '<div class="copilot-source">' + s.source_type + ' \u2014 ' + s.source_ref + '</div>';
+          return '<div class="copilot-source">' + Format.escape(s.source_type) + ' \u2014 ' + Format.escape(s.source_ref) + '</div>';
         }).join("") + '</div>';
       }
       return '<div class="copilot-message copilot-message--assistant">' + escapeHtml(msg.text) + sourcesHtml + '</div>';

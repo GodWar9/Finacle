@@ -7,6 +7,9 @@
 */
 
 var Format = {
+  escape: function (value) {
+    return String(value == null ? "" : value).replace(/[&<>"']/g, function (char) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]; });
+  },
 
   // amount_minor is always an integer count of paise (see doc 05 §1.3
   // — money is never stored as a float). This turns 150000 into
@@ -33,11 +36,11 @@ var Format = {
   // "amount-mismatch", so the badge CSS classes in components.css
   // can be generated straight from the schema's enum values.
   toCssSuffix: function (enumValue) {
-    return enumValue.toLowerCase().replace(/_/g, "-");
+    return String(enumValue).toLowerCase().replace(/[^a-z0-9-]/g, "-");
   },
 
   accountLabel: function (accountId) {
-    var match = MOCK_DATA.accounts.find(function (a) {
+    var match = Api.accounts.find(function (a) {
       return a.account_id === accountId;
     });
     return match ? match.account_number + " (" + match.account_type + ")" : accountId;

@@ -9,6 +9,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import JSONResponse
 
+from app import portal
 from app.auth import AuthMiddleware
 from app.config import get_settings
 from app.grpc_client import get_grpc_client
@@ -87,11 +88,18 @@ app.add_middleware(PrometheusMiddleware)
 async def middleware_errors(request: Request, call_next):
     # HTTPException raised by middleware is outside FastAPI's route handler.
     try:
-        return await call_next(request)
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "same-origin"
+        response.headers["Cache-Control"] = "no-store"
+        return response
     except HTTPException as exc:
         return JSONResponse({"detail": exc.detail}, status_code=exc.status_code, headers=exc.headers)
 
 
+app.include_router(portal.router)
+app.post("/api/v1/rag/ask")(portal.copilot_proxy)
 app.include_router(health.router)
 app.include_router(transactions.router)
 app.include_router(webhooks.router)
@@ -105,5 +113,7 @@ app.add_route("/metrics", metrics_endpoint)
 # Serve the demo portal. Routes registered above (health, api/v1, metrics)
 # take precedence; everything else falls through to the static frontend.
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+if not STATIC_DIR.is_dir():
+    STATIC_DIR = Path(__file__).resolve().parents[2] / "frontend"
 if STATIC_DIR.is_dir():
     app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="portal")

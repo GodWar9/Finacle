@@ -30,16 +30,19 @@ async def index_document(
     source_ref: str,
     content: str,
     embedding: list[float],
+    *,
+    merchant_id: str | None = None,
 ) -> UUID:
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            """INSERT INTO rag_documents (source_type, source_ref, content, embedding)
-               VALUES ($1, $2, $3, $4)
+            """INSERT INTO rag_documents (source_type, source_ref, content, embedding, merchant_id)
+               VALUES ($1, $2, $3, $4, $5)
                RETURNING doc_id""",
             source_type,
             source_ref,
             content,
             embedding,
+            merchant_id,
         )
         return row["doc_id"]
 
@@ -49,30 +52,22 @@ async def search_documents(
     query_embedding: list[float],
     source_types: list[str] | None = None,
     limit: int = 8,
+    *,
+    merchant_id: str | None = None,
 ) -> list[dict[str, Any]]:
     async with pool.acquire() as conn:
-        if source_types:
-            placeholders = ",".join([f"${i + 2}" for i in range(len(source_types))])
-            query = f"""
-                SELECT doc_id, source_type, source_ref, content,
-                       1 - (embedding <=> $1) AS similarity
-                FROM rag_documents
-                WHERE source_type IN ({placeholders})
-                ORDER BY embedding <=> $1
-                LIMIT ${len(source_types) + 2}
-            """
-            params = [query_embedding] + source_types + [limit]
-        else:
-            query = """
-                SELECT doc_id, source_type, source_ref, content,
-                       1 - (embedding <=> $1) AS similarity
-                FROM rag_documents
-                ORDER BY embedding <=> $1
-                LIMIT $2
-            """
-            params = [query_embedding, limit]
-
-        rows = await conn.fetch(query, *params)
+        rows = await conn.fetch(
+            """SELECT doc_id, source_type, source_ref, content,
+                      1 - (embedding <=> $1) AS similarity
+               FROM rag_documents
+               WHERE (merchant_id = $2 OR (merchant_id IS NULL AND source_type IN ('POLICY_DOC','REGULATORY_CIRCULAR')))
+                 AND ($3::text[] IS NULL OR source_type = ANY($3::text[]))
+               ORDER BY embedding <=> $1 LIMIT $4""",
+            query_embedding,
+            merchant_id,
+            source_types,
+            limit,
+        )
         return [dict(row) for row in rows]
 
 

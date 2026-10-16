@@ -1,3 +1,4 @@
+import os
 import time
 
 import grpc
@@ -18,6 +19,12 @@ class LedgerGrpcClient:
         self.address = address
         self.channel: grpc.aio.Channel | None = None
         self.stub: ledger_pb2_grpc.LedgerCoreStub | None = None
+
+    def _metadata(self):
+        token = os.getenv("LEDGER_SERVICE_TOKEN", "")
+        if len(token) < 32:
+            raise RuntimeError("LEDGER_SERVICE_TOKEN must contain at least 32 characters")
+        return (("x-ledger-service-token", token),)
 
     async def connect(self):
         self.channel = grpc.aio.insecure_channel(self.address)
@@ -44,12 +51,16 @@ class LedgerGrpcClient:
     async def post_transaction(self, request: ledger_pb2.PostTransactionRequest) -> ledger_pb2.PostTransactionResponse:
         if not self.stub:
             raise RuntimeError("gRPC client not connected")
-        return await self._call_with_metrics("PostTransaction", lambda: self.stub.PostTransaction(request, timeout=5.0))
+        return await self._call_with_metrics(
+            "PostTransaction", lambda: self.stub.PostTransaction(request, timeout=5.0, metadata=self._metadata())
+        )
 
     async def get_balance(self, request: ledger_pb2.GetBalanceRequest) -> ledger_pb2.GetBalanceResponse:
         if not self.stub:
             raise RuntimeError("gRPC client not connected")
-        return await self._call_with_metrics("GetBalance", lambda: self.stub.GetBalance(request, timeout=2.0))
+        return await self._call_with_metrics(
+            "GetBalance", lambda: self.stub.GetBalance(request, timeout=2.0, metadata=self._metadata())
+        )
 
     async def reverse_transaction(
         self, request: ledger_pb2.ReverseTransactionRequest
@@ -57,7 +68,7 @@ class LedgerGrpcClient:
         if not self.stub:
             raise RuntimeError("gRPC client not connected")
         return await self._call_with_metrics(
-            "ReverseTransaction", lambda: self.stub.ReverseTransaction(request, timeout=5.0)
+            "ReverseTransaction", lambda: self.stub.ReverseTransaction(request, timeout=5.0, metadata=self._metadata())
         )
 
 

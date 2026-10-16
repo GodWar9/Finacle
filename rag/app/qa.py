@@ -14,7 +14,7 @@ SCOPE_FILTERS = {
 }
 
 
-async def answer_question(request: AskRequest) -> AskResponse:
+async def answer_question(request: AskRequest, merchant_id: str) -> AskResponse:
     if not settings.openai_api_key:
         return AskResponse(
             answer="OpenAI API key not configured. Set OPENAI_API_KEY to enable RAG queries.",
@@ -29,7 +29,11 @@ async def answer_question(request: AskRequest) -> AskResponse:
         source_filter = SCOPE_FILTERS.get(request.scope) if request.scope else None
 
         docs = await search_documents(
-            pool, query_embedding, source_filter, settings.rag_top_k
+            pool,
+            query_embedding,
+            source_filter,
+            settings.rag_top_k,
+            merchant_id=merchant_id,
         )
 
         if not docs:

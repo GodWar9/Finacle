@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import UUID
 
 import structlog
@@ -20,15 +21,20 @@ async def list_transactions(
     merchant_id: str = Depends(get_current_merchant),
     account_id: UUID | None = None,
     transaction_type: str | None = None,
-    start_date: str | None = None,
-    end_date: str | None = None,
-    limit: int = Query(50, le=100),
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
+    limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ):
     pool = await _get_pool()
-    conditions = []
-    params = []
-    param_idx = 1
+    conditions = [
+        "EXISTS (SELECT 1 FROM ledger_entries own WHERE own.transaction_id = t.transaction_id) "
+        "AND NOT EXISTS (SELECT 1 FROM ledger_entries own JOIN accounts a ON a.account_id = "
+        "own.account_id WHERE own.transaction_id = t.transaction_id AND a.merchant_id IS "
+        "DISTINCT FROM $1)"
+    ]
+    params = [merchant_id]
+    param_idx = 2
 
     if account_id:
         conditions.append(f"le.account_id = ${param_idx}")
@@ -53,14 +59,18 @@ async def list_transactions(
     where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
 
     query = f"""
+        WITH selected AS (
+            SELECT DISTINCT t.* FROM transactions t
+            JOIN ledger_entries le ON le.transaction_id = t.transaction_id
+            {where_clause}
+            ORDER BY t.created_at DESC, t.transaction_id
+            LIMIT ${param_idx} OFFSET ${param_idx + 1}
+        )
         SELECT t.transaction_id, t.idempotency_key, t.transaction_type, t.reference_id,
                t.status, t.reversal_of, t.narrative, t.created_at,
                le.entry_id, le.account_id, le.direction, le.amount_minor, le.currency
-        FROM transactions t
-        JOIN ledger_entries le ON le.transaction_id = t.transaction_id
-        {where_clause}
-        ORDER BY t.created_at DESC
-        LIMIT ${param_idx} OFFSET ${param_idx + 1}
+        FROM selected t JOIN ledger_entries le ON le.transaction_id = t.transaction_id
+        ORDER BY t.created_at DESC, t.transaction_id, le.entry_id
     """
     params.extend([limit, offset])
 
@@ -107,7 +117,11 @@ async def get_transaction(
     row = await pool.fetchrow(
         "SELECT transaction_id, idempotency_key, transaction_type, "
         "reference_id, status, reversal_of, narrative, created_at "
-        "FROM transactions WHERE transaction_id = $1",
+        "FROM transactions t WHERE transaction_id = $2 AND EXISTS (SELECT 1 FROM ledger_entries "
+        "own WHERE own.transaction_id = t.transaction_id) AND NOT EXISTS (SELECT 1 FROM "
+        "ledger_entries own JOIN accounts a ON a.account_id = own.account_id WHERE "
+        "own.transaction_id = t.transaction_id AND a.merchant_id IS DISTINCT FROM $1)",
+        merchant_id,
         transaction_id,
     )
     if not row:

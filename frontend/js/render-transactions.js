@@ -16,6 +16,9 @@ var RenderTransactions = {
   // Not persisted anywhere — this is just form state.
   draftRows: [],
   rowCounter: 0,
+  pendingKey: null,
+  pendingBody: null,
+  posting: false,
 
   mount: function () {
     var container = document.getElementById("view-transactions");
@@ -54,8 +57,7 @@ var RenderTransactions = {
 
     this.draftRows = [];
     this.rowCounter = 0;
-    this.addRow("DEBIT");
-    this.addRow("CREDIT");
+    Api.getAccounts().then(function () { self.addRow("DEBIT"); self.addRow("CREDIT"); }).catch(showLoadError);
 
     var self = this;
     document.getElementById("add-row-btn").addEventListener("click", function () {
@@ -70,7 +72,7 @@ var RenderTransactions = {
 
   addRow: function (direction) {
     var rowId = "row_" + (this.rowCounter++);
-    this.draftRows.push({ id: rowId, direction: direction, accountId: MOCK_DATA.accounts[0].account_id, amountMinor: 0 });
+    this.draftRows.push({ id: rowId, direction: direction, accountId: (Api.accounts[0] || {}).account_id || "", amountMinor: 0 });
     this.renderRows();
   },
 
@@ -83,8 +85,8 @@ var RenderTransactions = {
     var self = this;
     var container = document.getElementById("entry-rows");
 
-    var accountOptions = MOCK_DATA.accounts.map(function (a) {
-      return '<option value="' + a.account_id + '">' + a.account_number + ' — ' + a.account_type + '</option>';
+    var accountOptions = Api.accounts.map(function (a) {
+      return '<option value="' + Format.escape(a.account_id) + '">' + Format.escape(a.account_number) + ' — ' + Format.escape(a.account_type) + '</option>';
     }).join("");
 
     container.innerHTML = this.draftRows.map(function (row) {
@@ -106,6 +108,7 @@ var RenderTransactions = {
     this.draftRows.forEach(function (row) {
       var rowEl = container.querySelector('[data-row-id="' + row.id + '"]');
       rowEl.querySelector(".row-account").value = row.accountId;
+      rowEl.querySelector(".row-amount").value = row.amountMinor ? String(row.amountMinor / 100) : "";
       rowEl.querySelector(".row-account").addEventListener("change", function (e) {
         row.accountId = e.target.value;
         self.updateTicker();
@@ -143,7 +146,7 @@ var RenderTransactions = {
 
     var verdictEl = document.getElementById("balance-verdict");
     var postBtn = document.getElementById("post-txn-btn");
-    var isBalanced = debitTotal === creditTotal && debitTotal > 0;
+    var isBalanced = debitTotal === creditTotal && debitTotal > 0 && !this.posting && this.draftRows.every(function (row) { return row.accountId && Number.isSafeInteger(row.amountMinor) && row.amountMinor > 0; });
 
     if (isBalanced) {
       verdictEl.textContent = "BALANCED";
@@ -157,6 +160,7 @@ var RenderTransactions = {
   },
 
   postTransaction: function () {
+    if (this.posting) return;
     var self = this;
     var messageEl = document.getElementById("post-txn-message");
     var narrative = document.getElementById("txn-narrative").value;
@@ -170,16 +174,18 @@ var RenderTransactions = {
       };
     });
 
-    // A fresh idempotency key per submit — in a real client this
-    // would be generated once per logical user action and reused
-    // across retries, exactly as described in
-    // 03_API_GATEWAY_AND_IDEMPOTENCY_PYTHON.md §3.
-    var idempotencyKey = "idem_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+    // Preserve the same key when retrying an unchanged draft after an ambiguous failure.
+    var signature = JSON.stringify([entries, narrative]);
+    if (signature !== this.pendingBody) { this.pendingBody = signature; this.pendingKey = crypto.randomUUID(); }
+    var idempotencyKey = this.pendingKey;
+    this.posting = true;
+    this.updateTicker();
 
     messageEl.textContent = "Posting...";
     messageEl.style.color = "var(--color-paper-text-muted)";
 
     Api.postTransaction(idempotencyKey, entries, narrative, "PAYMENT").then(function () {
+      self.pendingKey = null; self.pendingBody = null;
       messageEl.textContent = "Posted.";
       messageEl.style.color = "var(--color-ledger-green)";
       self.draftRows = [];
@@ -191,7 +197,7 @@ var RenderTransactions = {
     }).catch(function (err) {
       messageEl.textContent = err.message;
       messageEl.style.color = "var(--color-debit-red)";
-    });
+    }).finally(function () { self.posting = false; self.updateTicker(); });
   },
 
   loadJournal: function () {
@@ -204,14 +210,14 @@ var RenderTransactions = {
       body.innerHTML = transactions.map(function (txn) {
         return (
           '<tr>' +
-            '<td>' + txn.transaction_id + '</td>' +
-            '<td>' + txn.transaction_type + '</td>' +
-            '<td>' + (txn.narrative || '\u2014') + '</td>' +
+            '<td>' + Format.escape(txn.transaction_id) + '</td>' +
+            '<td>' + Format.escape(txn.transaction_type) + '</td>' +
+            '<td>' + Format.escape((txn.narrative || '\u2014')) + '</td>' +
             '<td>' + Format.timestamp(txn.created_at) + '</td>' +
-            '<td><span class="badge badge--' + Format.toCssSuffix(txn.status) + '">' + txn.status + '</span></td>' +
+            '<td><span class="badge badge--' + Format.toCssSuffix(txn.status) + '">' + Format.escape(txn.status) + '</span></td>' +
           '</tr>'
         );
       }).join("");
-    });
+    }).catch(showLoadError);
   }
 };

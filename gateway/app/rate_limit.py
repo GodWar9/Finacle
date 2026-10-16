@@ -37,7 +37,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         merchant_id = getattr(request.state, "merchant_id", None)
         if not merchant_id:
-            merchant_id = request.headers.get("X-Merchant-ID", "anonymous")
+            return await call_next(request)
 
         if merchant_id == "anonymous":
             return await call_next(request)

@@ -3,8 +3,9 @@ import logging
 from contextlib import asynccontextmanager
 
 import structlog
-from fastapi import FastAPI, status
+from fastapi import Depends, FastAPI, status
 
+from app.auth import merchant_identity, policy_admin
 from app.config import get_settings
 from app.db import get_pool, index_document
 from app.embedding import chunk_text, embed_text
@@ -63,12 +64,13 @@ async def health_check():
 
 
 @app.post("/api/v1/rag/ask", response_model=AskResponse)
-async def ask_question(request: AskRequest):
-    return await answer_question(request)
+async def ask_question(request: AskRequest, merchant: str = Depends(merchant_identity)):
+    return await answer_question(request, merchant)
 
 
 @app.post(
     "/api/v1/rag/ingest-policy",
+    dependencies=[Depends(policy_admin)],
     response_model=IngestPolicyResponse,
     status_code=status.HTTP_201_CREATED,
 )

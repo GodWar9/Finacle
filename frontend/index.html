@@ -15,12 +15,7 @@
 
     <header class="topbar">
       <div class="topbar__wordmark">LEDGER<span>-CORE</span> · Ops Console</div>
-      <div class="topbar__status">
-        <span><span class="status-dot"></span>core</span>
-        <span><span class="status-dot"></span>gateway</span>
-        <span><span class="status-dot"></span>recon</span>
-        <span><span class="status-dot"></span>rag</span>
-      </div>
+<div class="topbar__status"><span id="portal-mode">Connecting…</span><button id="portal-logout" hidden>Sign out</button></div>
     </header>
 
     <nav class="side-nav">
@@ -39,6 +34,14 @@
     </nav>
 
     <main class="main-content">
+      <p id="portal-error" role="alert" hidden></p>
+      <section id="portal-login" hidden>
+        <h1>Sign in to your workspace</h1>
+        <form id="login-form"><label for="portal-password">Workspace password</label>
+          <input id="portal-password" type="password" required maxlength="1024" autocomplete="current-password">
+          <button class="btn btn--primary">Sign in</button><p id="login-error" role="alert"></p>
+        </form><p><a href="?demo=1">Explore the synthetic demo</a></p>
+      </section>
       <div class="view view--active" id="view-overview"></div>
       <div class="view" id="view-transactions"></div>
       <div class="view" id="view-reconciliation"></div>
@@ -63,6 +66,7 @@
   <script src="js/render-copilot.js"></script>
 
   <!-- Wires the nav to the views. Loads last since it calls the objects above. -->
+  <script src="js/session.js"></script>
   <script src="js/main.js"></script>
 
 </body>

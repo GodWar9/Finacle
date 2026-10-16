@@ -18,15 +18,15 @@ async def list_reconciliation_exceptions(
     merchant_id: str = Depends(get_current_merchant),
     batch_id: str | None = None,
     exception_type: str | None = None,
-    limit: int = Query(50, le=200),
+    limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
     """List reconciliation exceptions, optionally filtered by batch or type."""
     pool = await _get_pool()
     try:
-        conditions = []
-        params = []
-        idx = 1
+        conditions = ["batch_id IN (SELECT batch_id FROM settlement_files WHERE uploaded_by = $1)"]
+        params = [merchant_id]
+        idx = 2
 
         if batch_id:
             conditions.append(f"batch_id = ${idx}")
@@ -73,4 +73,4 @@ async def list_reconciliation_exceptions(
         }
     except Exception as e:
         logger.error("list_recon_exceptions_failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Unable to load reconciliation exceptions")

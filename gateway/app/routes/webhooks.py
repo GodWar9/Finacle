@@ -1,7 +1,7 @@
-import ledger_pb2
 import structlog
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 
+import ledger_pb2
 from app.auth import get_current_merchant, verify_webhook_signature
 from app.config import get_settings
 from app.grpc_client import get_grpc_client
@@ -20,6 +20,8 @@ async def payment_gateway_webhook(
     payload = await request.body()
 
     webhook_secret = settings.webhook_secret
+    if len(webhook_secret) < 32:
+        raise HTTPException(503, "Webhook signing is not configured")
     if not verify_webhook_signature(payload, x_signature, webhook_secret):
         logger.warning("webhook_invalid_signature", merchant_id=merchant_id)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid signature")
@@ -45,11 +47,18 @@ async def payment_gateway_webhook(
     if not all([payment_id, amount_minor, account_id]):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing required fields")
 
+    import os
+
+    clearing = json.loads(os.getenv("WEBHOOK_CLEARING_ACCOUNTS") or "{}")
+    clearing_account = clearing.get(merchant_id)
+    if not clearing_account:
+        raise HTTPException(503, "Merchant clearing account is not configured")
     client = await get_grpc_client()
 
     idempotency_key = f"webhook_{payment_id}"
 
     grpc_req = ledger_pb2.PostTransactionRequest(
+        merchant_id=merchant_id,
         idempotency_key=idempotency_key,
         transaction_type="PAYMENT",
         reference_id=reference_id or payment_id,
@@ -61,7 +70,7 @@ async def payment_gateway_webhook(
                 currency=currency,
             ),
             ledger_pb2.LedgerEntry(
-                account_id="00000000-0000-0000-0000-000000000001",
+                account_id=clearing_account,
                 direction="CREDIT",
                 amount_minor=amount_minor,
                 currency=currency,
@@ -88,6 +97,8 @@ async def reconciliation_webhook(
     payload = await request.body()
 
     webhook_secret = settings.webhook_secret
+    if len(webhook_secret) < 32:
+        raise HTTPException(503, "Webhook signing is not configured")
     if not verify_webhook_signature(payload, x_signature, webhook_secret):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid signature")
 

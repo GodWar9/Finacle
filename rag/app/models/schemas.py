@@ -1,11 +1,12 @@
+from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class AskRequest(BaseModel):
-    question: str
-    scope: str | None = None
+    question: str = Field(min_length=1, max_length=4000)
+    scope: Literal["ops", "compliance"] | None = None
 
 
 class SourceCitation(BaseModel):
@@ -20,9 +21,9 @@ class AskResponse(BaseModel):
 
 
 class IngestPolicyRequest(BaseModel):
-    source_type: str
-    source_ref: str
-    content: str
+    source_type: Literal["POLICY_DOC", "REGULATORY_CIRCULAR"]
+    source_ref: str = Field(min_length=1, max_length=300)
+    content: str = Field(min_length=1, max_length=100000)
 
 
 class IngestPolicyResponse(BaseModel):

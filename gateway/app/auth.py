@@ -30,13 +30,27 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 self.api_keys[key.strip()] = merchant_id.strip()
 
     async def dispatch(self, request: Request, call_next):
-        if request.url.path in ["/health", "/health/ready", "/metrics", "/"] or request.url.path.startswith(
-            ("/css/", "/js/", "/data/")
-        ):
+        from app.portal import same_origin, session_merchant
+
+        if request.url.path in [
+            "/health",
+            "/health/ready",
+            "/metrics",
+            "/",
+            "/portal/login",
+            "/portal/logout",
+            "/portal/session",
+        ] or request.url.path.startswith(("/css/", "/js/", "/data/")):
             return await call_next(request)
 
         api_key = request.headers.get("X-API-Key")
         if not api_key:
+            merchant = session_merchant(request)
+            if merchant:
+                if request.method not in ("GET", "HEAD", "OPTIONS"):
+                    same_origin(request)
+                request.state.merchant_id = merchant
+                return await call_next(request)
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="X-API-Key header is required")
 
         merchant_id = self.api_keys.get(api_key)
@@ -50,7 +64,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
 
 async def get_current_merchant(request: Request) -> str:
-    return getattr(request.state, "merchant_id", "anonymous")
+    merchant = getattr(request.state, "merchant_id", None)
+    if not isinstance(merchant, str) or not merchant:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    return merchant
 
 
 def verify_webhook_signature(payload: bytes, signature: str, secret: str) -> bool:

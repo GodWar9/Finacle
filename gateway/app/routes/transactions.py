@@ -1,10 +1,10 @@
 from uuid import UUID
 
 import grpc
-import ledger_pb2
 import structlog
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 
+import ledger_pb2
 from app.auth import get_current_merchant
 from app.grpc_client import get_grpc_client
 from app.models.schemas import (
@@ -38,6 +38,7 @@ async def post_transaction(
     ]
 
     grpc_req = ledger_pb2.PostTransactionRequest(
+        merchant_id=merchant_id,
         idempotency_key=idempotency_key,
         transaction_type=req.transaction_type,
         reference_id=req.reference_id or "",
@@ -75,7 +76,7 @@ async def post_transaction(
 async def get_balance(account_id: UUID, merchant_id: str = Depends(get_current_merchant)):
     client = await get_grpc_client()
 
-    grpc_req = ledger_pb2.GetBalanceRequest(account_id=str(account_id))
+    grpc_req = ledger_pb2.GetBalanceRequest(account_id=str(account_id), merchant_id=merchant_id)
 
     try:
         resp = await client.get_balance(grpc_req)
@@ -94,11 +95,18 @@ async def get_balance(account_id: UUID, merchant_id: str = Depends(get_current_m
 
 @router.post("/transactions/{transaction_id}/reverse", response_model=PostTransactionResponse)
 async def reverse_transaction(
-    transaction_id: UUID, req: ReverseTransactionRequest, merchant_id: str = Depends(get_current_merchant)
+    transaction_id: UUID,
+    req: ReverseTransactionRequest,
+    merchant_id: str = Depends(get_current_merchant),
+    idempotency_key: str = Header(..., alias="Idempotency-Key"),
 ):
     client = await get_grpc_client()
 
+    if req.idempotency_key != idempotency_key:
+        raise HTTPException(400, "Body and header idempotency keys must match")
+
     grpc_req = ledger_pb2.ReverseTransactionRequest(
+        merchant_id=merchant_id,
         transaction_id=str(transaction_id),
         idempotency_key=req.idempotency_key,
         reason=req.reason,

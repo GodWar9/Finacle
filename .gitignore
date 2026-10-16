@@ -31,3 +31,7 @@ venv/
 
 # Self-referential nested clone (stray artifact)
 /Finacle/
+
+node_modules/
+playwright-report/
+test-results/

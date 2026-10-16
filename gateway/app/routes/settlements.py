@@ -57,8 +57,9 @@ async def get_settlement_status(
     row = await pool.fetchrow(
         "SELECT batch_id, filename, status, processed_count, "
         "failed_count, created_at, completed_at "
-        "FROM settlement_files WHERE batch_id = $1",
+        "FROM settlement_files WHERE batch_id = $1 AND uploaded_by = $2",
         batch_id,
+        merchant_id,
     )
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Settlement batch not found")

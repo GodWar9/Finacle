@@ -37,7 +37,7 @@ var RenderReconciliation = {
       self.allExceptions = exceptions;
       self.renderFilters();
       self.renderTable();
-    });
+    }).catch(showLoadError);
   },
 
   renderFilters: function () {
@@ -52,7 +52,7 @@ var RenderReconciliation = {
       var isActive = type === self.activeFilter;
       var label = type === "ALL" ? "All" : type.replace(/_/g, " ").toLowerCase();
       return (
-        '<button class="chip' + (isActive ? " chip--active" : "") + '" data-type="' + type + '">' +
+        '<button class="chip' + (isActive ? " chip--active" : "") + '" data-type="' + Format.escape(type) + '">' +
           label +
         '</button>'
       );
@@ -81,10 +81,10 @@ var RenderReconciliation = {
     body.innerHTML = rows.map(function (e) {
       return (
         '<tr>' +
-          '<td><span class="badge badge--' + Format.toCssSuffix(e.exception_type) + '">' + e.exception_type.replace(/_/g, " ") + '</span></td>' +
-          '<td>' + e.batch_id + '</td>' +
-          '<td>' + (e.ledger_transaction_id || '\u2014') + '</td>' +
-          '<td>' + e.bank_reference + '</td>' +
+          '<td><span class="badge badge--' + Format.toCssSuffix(e.exception_type) + '">' + Format.escape(e.exception_type.replace(/_/g, " ")) + '</span></td>' +
+          '<td>' + Format.escape(e.batch_id) + '</td>' +
+          '<td>' + Format.escape((e.ledger_transaction_id || '\u2014')) + '</td>' +
+          '<td>' + Format.escape(e.bank_reference) + '</td>' +
           '<td>' + (e.ledger_amount_minor != null ? Format.money(e.ledger_amount_minor, "INR") : '\u2014') + '</td>' +
           '<td>' + (e.bank_amount_minor != null ? Format.money(e.bank_amount_minor, "INR") : '\u2014') + '</td>' +
           '<td>' + Format.timestamp(e.detected_at) + '</td>' +

@@ -1,6 +1,11 @@
 # Finacle deployment build plan
 
-Updated 2026-10-09. Free-tier services only; a fully working app is the target.
+Updated 2026-10-16. Free-tier services only; a fully working app is the target.
+
+Current implementation, verification and remaining deployment gates are recorded in
+[PRODUCT_READINESS.md](PRODUCT_READINESS.md). Tenant ownership, private RPC authentication,
+scoped RAG, the same-origin live portal and Playwright are now implemented. The list below
+preserves the original sequence; full container recovery and hosted deployment remain open.
 
 Verified baseline: 44 gateway and seven RAG tests, Python lint/format, Rust test
 compilation, four database-independent Rust tests, Rust formatting and Clippy.

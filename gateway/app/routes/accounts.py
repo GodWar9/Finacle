@@ -2,7 +2,7 @@ from uuid import UUID
 
 import asyncpg
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from app.auth import get_current_merchant
@@ -47,12 +47,13 @@ async def create_account(req: CreateAccountRequest, merchant_id: str = Depends(g
     pool = await _get_pool()
     try:
         row = await pool.fetchrow(
-            f"INSERT INTO accounts (account_number, account_type, owner_ref, currency) "
-            f"VALUES ($1, $2, $3, $4) RETURNING {ACCT_COLS}",
+            f"INSERT INTO accounts (account_number, account_type, owner_ref, currency, merchant_id) "
+            f"VALUES ($1, $2, $3, $4, $5) RETURNING {ACCT_COLS}",
             req.account_number,
             req.account_type,
             req.owner_ref,
             req.currency,
+            merchant_id,
         )
         if not row:
             raise HTTPException(status_code=500, detail="Failed to create account")
@@ -73,8 +74,9 @@ async def create_account(req: CreateAccountRequest, merchant_id: str = Depends(g
 async def get_account(account_id: UUID, merchant_id: str = Depends(get_current_merchant)):
     pool = await _get_pool()
     row = await pool.fetchrow(
-        f"SELECT {ACCT_COLS} FROM accounts WHERE account_id = $1",
+        f"SELECT {ACCT_COLS} FROM accounts WHERE account_id = $1 AND merchant_id = $2",
         account_id,
+        merchant_id,
     )
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
@@ -93,28 +95,33 @@ async def get_account(account_id: UUID, merchant_id: str = Depends(get_current_m
 async def list_accounts(
     merchant_id: str = Depends(get_current_merchant),
     owner_ref: str | None = None,
-    limit: int = 50,
-    offset: int = 0,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
 ):
     pool = await _get_pool()
     if owner_ref:
         rows = await pool.fetch(
-            f"SELECT {ACCT_COLS} FROM accounts WHERE owner_ref = $1 LIMIT $2 OFFSET $3",
+            f"SELECT {ACCT_COLS} FROM accounts WHERE merchant_id = $1 AND owner_ref = $2 "
+            "ORDER BY created_at, account_id LIMIT $3 OFFSET $4",
+            merchant_id,
             owner_ref,
             limit,
             offset,
         )
         total = await pool.fetchval(
-            "SELECT COUNT(*) FROM accounts WHERE owner_ref = $1",
+            "SELECT COUNT(*) FROM accounts WHERE merchant_id = $1 AND owner_ref = $2",
+            merchant_id,
             owner_ref,
         )
     else:
         rows = await pool.fetch(
-            f"SELECT {ACCT_COLS} FROM accounts LIMIT $1 OFFSET $2",
+            f"SELECT {ACCT_COLS} FROM accounts WHERE merchant_id = $1 "
+            "ORDER BY created_at, account_id LIMIT $2 OFFSET $3",
+            merchant_id,
             limit,
             offset,
         )
-        total = await pool.fetchval("SELECT COUNT(*) FROM accounts")
+        total = await pool.fetchval("SELECT COUNT(*) FROM accounts WHERE merchant_id = $1", merchant_id)
 
     accounts = [
         AccountResponse(
@@ -135,8 +142,9 @@ async def list_accounts(
 async def freeze_account(account_id: UUID, merchant_id: str = Depends(get_current_merchant)):
     pool = await _get_pool()
     row = await pool.fetchrow(
-        f"UPDATE accounts SET status = 'FROZEN' WHERE account_id = $1 RETURNING {ACCT_COLS}",
+        f"UPDATE accounts SET status = 'FROZEN' WHERE account_id = $1 AND merchant_id = $2 RETURNING {ACCT_COLS}",
         account_id,
+        merchant_id,
     )
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
@@ -155,8 +163,10 @@ async def freeze_account(account_id: UUID, merchant_id: str = Depends(get_curren
 async def unfreeze_account(account_id: UUID, merchant_id: str = Depends(get_current_merchant)):
     pool = await _get_pool()
     row = await pool.fetchrow(
-        f"UPDATE accounts SET status = 'ACTIVE' WHERE account_id = $1 AND status = 'FROZEN' RETURNING {ACCT_COLS}",
+        f"UPDATE accounts SET status = 'ACTIVE' WHERE account_id = $1 AND merchant_id = $2 "
+        f"AND status = 'FROZEN' RETURNING {ACCT_COLS}",
         account_id,
+        merchant_id,
     )
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found or not frozen")

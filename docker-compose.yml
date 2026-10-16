@@ -52,11 +52,12 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
-    ports: ["50051:50051"]
+    ports: ["127.0.0.1:50051:50051"]
     environment:
       DATABASE_URL: postgresql://ledger_app:dev_only@postgres:5432/ledger
       KAFKA_BROKERS: kafka:9092
       RUST_LOG: info
+      LEDGER_SERVICE_TOKEN: ${LEDGER_SERVICE_TOKEN:?Set a private service token of at least 32 characters}
 
   recon-engine:
     build: ./recon
@@ -101,6 +102,15 @@ services:
       REDIS_URL: redis://redis:6379
       API_KEYS: ${API_KEYS:?Set API_KEYS to key:merchant pairs}
       LEDGER_CORE_ADDR: ledger-core:50051
+      LEDGER_SERVICE_TOKEN: ${LEDGER_SERVICE_TOKEN:?Set a private service token of at least 32 characters}
+      PORTAL_PASSWORD: ${PORTAL_PASSWORD:-}
+      PORTAL_SESSION_SECRET: ${PORTAL_SESSION_SECRET:-}
+      PORTAL_MERCHANT_ID: ${PORTAL_MERCHANT_ID:-}
+      PORTAL_ORIGIN: ${PORTAL_ORIGIN:-http://127.0.0.1:8000}
+      RAG_INTERNAL_URL: http://rag-copilot:8001
+      RAG_SERVICE_KEY: ${RAG_SERVICE_KEY:-}
+      WEBHOOK_CLEARING_ACCOUNTS: ${WEBHOOK_CLEARING_ACCOUNTS:-}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
       RUST_LOG: info
 
   rag-copilot:
@@ -110,11 +120,13 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
-    ports: ["8001:8001"]
+    ports: ["127.0.0.1:8001:8001"]
     environment:
       DATABASE_URL: postgresql://ledger_app:dev_only@postgres:5432/ledger
       KAFKA_BROKERS: kafka:9092
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      RAG_API_KEYS: ${RAG_API_KEYS:-}
+      RAG_ADMIN_KEY: ${RAG_ADMIN_KEY:-}
       EMBEDDING_MODEL: text-embedding-3-small
 
   rag-indexer:
@@ -127,7 +139,9 @@ services:
     environment:
       DATABASE_URL: postgresql://ledger_app:dev_only@postgres:5432/ledger
       KAFKA_BROKERS: kafka:9092
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      RAG_API_KEYS: ${RAG_API_KEYS:-}
+      RAG_ADMIN_KEY: ${RAG_ADMIN_KEY:-}
       EMBEDDING_MODEL: text-embedding-3-small
     command: ["python", "-m", "indexer.kafka_consumer"]
 

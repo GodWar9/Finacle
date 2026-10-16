@@ -4,13 +4,15 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.idempotency import IdempotencyMiddleware, canonical_hash
+from app.idempotency import IdempotencyMiddleware, canonical_hash, scoped_key
 from app.rate_limit import RateLimitMiddleware
 
 
 def _post_request(body_bytes: bytes, headers=None):
     req = MagicMock()
     req.method = "POST"
+    req.url.path = "/api/v1/transactions"
+    req.state.merchant_id = "merchant_test"
     req.headers = {"Idempotency-Key": "test-key", **(headers or {})}
     req.body = AsyncMock(return_value=body_bytes)
     return req
@@ -63,7 +65,9 @@ async def test_idempotency_middleware_replay_redis():
 
     assert response.status_code == 201
     mock_call_next.assert_not_called()
-    mock_redis.get.assert_called_once_with("idem:test-key")
+    mock_redis.get.assert_called_once_with(
+        "idem:" + scoped_key("merchant_test", "POST", "/api/v1/transactions", "test-key")
+    )
 
 
 @pytest.mark.asyncio
@@ -95,10 +99,10 @@ async def test_idempotency_middleware_non_json_body():
     )
     mock_request = _post_request(raw)
     mock_request.form = MagicMock()
-    mock_request.state = MagicMock()
+    mock_request.state.merchant_id = "merchant_test"
 
     cached = {
-        "idem:test-key": json.dumps(
+        "idem:" + scoped_key("merchant_test", "POST", "/api/v1/transactions", "test-key"): json.dumps(
             {
                 "request_hash": hashlib.sha256(raw).hexdigest(),
                 "response_body": {"raw": "cached"},
@@ -184,3 +188,61 @@ async def test_rate_limit_middleware():
 
     mock_redis.incr.assert_called_once_with("ratelimit:merchant_1")
     assert "X-RateLimit-Limit" in response.headers
+
+
+@pytest.mark.asyncio
+async def test_retry_cache_cannot_cross_tenants_or_operations():
+    from fastapi import Request
+    from starlette.responses import StreamingResponse
+
+    cached = {}
+    redis = AsyncMock()
+    redis.get.side_effect = lambda key: cached.get(key)
+
+    async def store(key, value, **kwargs):
+        cached[key] = value
+        return True
+
+    redis.set.side_effect = store
+    middleware = IdempotencyMiddleware(None, redis, object())
+    middleware.fetch_idempotency_record = AsyncMock(return_value=None)
+
+    async def cache_response(key, req_hash, body, status_code):
+        cached["idem:" + key] = json.dumps(
+            {"request_hash": req_hash, "response_body": body, "status_code": status_code}
+        )
+
+    middleware.cache_response = cache_response
+    calls = []
+
+    async def next_handler(request):
+        body = {"merchant": request.state.merchant_id, "path": request.url.path}
+        calls.append(body)
+
+        async def stream():
+            yield json.dumps(body).encode()
+
+        return StreamingResponse(stream(), status_code=201, media_type="application/json")
+
+    for merchant, path in (("a", "/api/v1/a"), ("b", "/api/v1/a"), ("a", "/api/v1/b"), ("a", "/api/v1/a")):
+
+        async def receive():
+            return {"type": "http.request", "body": b"{}", "more_body": False}
+
+        request = Request(
+            {
+                "type": "http",
+                "method": "POST",
+                "path": path,
+                "headers": [(b"idempotency-key", b"shared-key")],
+                "state": {"merchant_id": merchant},
+            },
+            receive,
+        )
+        response = await middleware.dispatch(request, next_handler)
+        assert json.loads(response.body) == {"merchant": merchant, "path": path}
+    assert len(calls) == 3
+    assert redis.eval.await_count == 3
+    for call in redis.eval.await_args_list:
+        assert "ARGV[1]" in call.args[0]
+        assert len(call.args[3]) == 32

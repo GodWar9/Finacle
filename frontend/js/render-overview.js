@@ -32,7 +32,7 @@ var RenderOverview = {
     Api.getTransactions().then(function (transactions) {
       self.renderStats(transactions);
       self.renderJournal(transactions);
-    });
+    }).catch(showLoadError);
   },
 
   renderStats: function (transactions) {
@@ -48,12 +48,12 @@ var RenderOverview = {
     });
 
     Api.getReconciliationExceptions().then(function (exceptions) {
-      var openCount = exceptions.length;
+      var openCount = exceptions.filter(function (entry) { return !entry.resolved; }).length;
       document.getElementById("overview-stats").innerHTML =
-        statCard("Total Ledger Volume", Format.money(totalLedgerMinor, "INR")) +
-        statCard("Transactions Today", String(txnsToday)) +
-        statCard("Open Exceptions", String(openCount));
-    });
+        statCard("Loaded Journal Volume", Format.money(totalLedgerMinor, "INR")) +
+        statCard("Loaded Transactions Today", String(txnsToday)) +
+        statCard("Loaded Open Exceptions", String(openCount));
+    }).catch(showLoadError);
 
     function statCard(label, value) {
       return (
@@ -80,12 +80,12 @@ var RenderOverview = {
         var amountClass = entry.direction === "DEBIT" ? "amount--debit" : "amount--credit";
         rows +=
           '<tr>' +
-            '<td>' + txn.transaction_id + '</td>' +
-            '<td>' + txn.transaction_type + '</td>' +
-            '<td>' + Format.accountLabel(entry.account_id) + '</td>' +
-            '<td>' + entry.direction + '</td>' +
-            '<td class="' + amountClass + '">' + Format.money(entry.amount_minor, entry.currency) + '</td>' +
-            '<td><span class="badge badge--' + Format.toCssSuffix(txn.status) + '">' + txn.status + '</span></td>' +
+            '<td>' + Format.escape(txn.transaction_id) + '</td>' +
+            '<td>' + Format.escape(txn.transaction_type) + '</td>' +
+            '<td>' + Format.escape(Format.accountLabel(entry.account_id)) + '</td>' +
+            '<td>' + Format.escape(entry.direction) + '</td>' +
+            '<td class="' + amountClass + '">' + Format.escape(Format.money(entry.amount_minor, entry.currency)) + '</td>' +
+            '<td><span class="badge badge--' + Format.toCssSuffix(txn.status) + '">' + Format.escape(txn.status) + '</span></td>' +
           '</tr>';
       });
     });

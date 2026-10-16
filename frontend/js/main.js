@@ -16,6 +16,7 @@ document.addEventListener("DOMContentLoaded", function () {
     copilot: RenderCopilot
   };
 
+  var ready = false;
   var mounted = {}; // track which views have been mounted already
 
   function showView(name) {
@@ -42,10 +43,11 @@ document.addEventListener("DOMContentLoaded", function () {
 
   document.querySelectorAll(".side-nav__item").forEach(function (btn) {
     btn.addEventListener("click", function () {
-      showView(btn.getAttribute("data-view"));
+      if (ready) showView(btn.getAttribute("data-view"));
     });
   });
 
   // Start on the overview tab.
-  showView("overview");
+  document.querySelectorAll(".side-nav__item").forEach(function (button) { button.disabled = true; });
+  Portal.start(function () { ready = true; showView("overview"); document.querySelectorAll(".side-nav__item").forEach(function (button) { button.disabled = false; }); });
 });

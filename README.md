@@ -10,6 +10,8 @@ compile-checked SQL), batch reconciliation is C++ (throughput-bound, fixed-width
 mainframe-format parsing), and the gateway + RAG copilot are Python (fast iteration for
 business logic and LLM integration).
 
+See [current product readiness and setup](docs/PRODUCT_READINESS.md) for portal authentication, tenant migrations, Playwright, and remaining deployment gates.
+
 ## Architecture
 
 ```

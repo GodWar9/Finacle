@@ -1,26 +1,19 @@
-/*
-  api.js
-  ------
-  Everything that would talk to the real backend lives here, in one
-  place, so the rest of the frontend never calls fetch() directly.
-
-  Right now USE_MOCK_DATA is true, so every function just returns the
-  data from mock-data.js (wrapped in a fake Promise + small delay so
-  the UI code that calls these functions doesn't need to change later
-  when we flip this to false and point at the real gateway from
-  03_API_GATEWAY_AND_IDEMPOTENCY_PYTHON.md).
-
-  To wire this up to the real backend: set USE_MOCK_DATA = false and
-  fill in GATEWAY_BASE_URL / RAG_BASE_URL below.
-*/
-
-var USE_MOCK_DATA = true;
-var GATEWAY_BASE_URL = "http://localhost:8000";
-var RAG_BASE_URL = "http://localhost:8001";
-var API_KEY = "";  // set to your X-API-Key value when USE_MOCK_DATA = false
+var USE_MOCK_DATA = new URLSearchParams(location.search).get("demo") === "1";
+var GATEWAY_BASE_URL = "";
+var RAG_BASE_URL = "";
+function checkedJson(response) {
+  if (!response.ok) throw new Error(response.status === 401 ? "Session expired. Reload and sign in." : "Service unavailable (" + response.status + "). Please retry.");
+  return response.json();
+}
+function showLoadError(error) {
+  var banner = document.getElementById("portal-error");
+  banner.textContent = error.message;
+  banner.hidden = false;
+}
 
 var Api = {
 
+  accounts: [],
   // Small helper so every mock call "feels" like a real network call.
   _fakeDelay: function (value, ms) {
     return new Promise(function (resolve) {
@@ -32,13 +25,15 @@ var Api = {
 
   getAccounts: function () {
     if (USE_MOCK_DATA) {
-      return this._fakeDelay(MOCK_DATA.accounts);
+      this.accounts = MOCK_DATA.accounts;
+      return this._fakeDelay(this.accounts);
     }
-    return fetch(GATEWAY_BASE_URL + "/api/v1/accounts", {
-      headers: { "X-API-Key": API_KEY }
+    var self = this;
+    return fetch(GATEWAY_BASE_URL + "/api/v1/accounts?limit=100", {
+      credentials: "same-origin"
     }).then(function (r) {
-      return r.json();
-    });
+      return checkedJson(r);
+    }).then(function (data) { self.accounts = data.accounts; return self.accounts; });
   },
 
   getTransactions: function () {
@@ -50,10 +45,10 @@ var Api = {
       return this._fakeDelay(sorted);
     }
     return fetch(GATEWAY_BASE_URL + "/api/v1/transactions", {
-      headers: { "X-API-Key": API_KEY }
+      credentials: "same-origin"
     }).then(function (r) {
-      return r.json();
-    });
+      return checkedJson(r);
+    }).then(function (data) { return data.transactions; });
   },
 
   // Mirrors POST /api/v1/transactions from doc 03. In mock mode we
@@ -92,8 +87,7 @@ var Api = {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Idempotency-Key": idempotencyKey,
-        "X-API-Key": API_KEY
+        "Idempotency-Key": idempotencyKey
       },
       body: JSON.stringify({
         transaction_type: transactionType,
@@ -102,7 +96,7 @@ var Api = {
       })
     }).then(function (r) {
       if (!r.ok) throw new Error("gateway rejected transaction: " + r.status);
-      return r.json();
+      return checkedJson(r);
     });
   },
 
@@ -111,10 +105,10 @@ var Api = {
       return this._fakeDelay(MOCK_DATA.reconciliationExceptions);
     }
     return fetch(GATEWAY_BASE_URL + "/api/v1/reconciliation/exceptions", {
-      headers: { "X-API-Key": API_KEY }
+      credentials: "same-origin"
     }).then(function (r) {
-      return r.json();
-    });
+      return checkedJson(r);
+    }).then(function (data) { return data.exceptions; });
   },
 
   // Mirrors POST /api/v1/rag/ask from doc 04.
@@ -131,10 +125,10 @@ var Api = {
     }
     return fetch(RAG_BASE_URL + "/api/v1/rag/ask", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-API-Key": API_KEY },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question: question, scope: scope })
     }).then(function (r) {
-      return r.json();
+      return checkedJson(r);
     });
   }
 };

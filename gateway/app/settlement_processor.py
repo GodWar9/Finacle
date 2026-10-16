@@ -194,18 +194,30 @@ class SettlementProcessor:
                 """
                 SELECT t.transaction_id, t.idempotency_key, t.transaction_type, t.reference_id,
                        t.status, t.created_at,
-                       le.account_id, le.direction, le.amount_minor, le.currency
+                       SUM(le.amount_minor) FILTER (WHERE le.direction='DEBIT') AS amount_minor,
+                       le.currency
                 FROM transactions t
                 JOIN ledger_entries le ON le.transaction_id = t.transaction_id
                 WHERE t.status = 'POSTED'
-                ORDER BY t.created_at
-                """
+                  AND EXISTS (SELECT 1 FROM settlement_files WHERE batch_id=$1)
+                  AND NOT EXISTS (
+                    SELECT 1 FROM ledger_entries owned JOIN accounts a ON a.account_id=owned.account_id
+                    WHERE owned.transaction_id=t.transaction_id AND a.merchant_id IS DISTINCT FROM
+                      (SELECT uploaded_by FROM settlement_files WHERE batch_id=$1)
+                  )
+                GROUP BY t.transaction_id, le.currency
+                ORDER BY t.created_at, t.transaction_id
+                """,
+                batch_id,
             )
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             for row in rows:
                 ref = str(row["transaction_id"])[:20].ljust(20)
-                amt = str(row["amount_minor"]).rjust(13)
+                amount = int(row["amount_minor"] or 0)
+                if not 0 < amount <= 9999999999999:
+                    raise ValueError("Settlement amount exceeds the fixed-width format")
+                amt = str(amount).rjust(13)
                 ccy = row["currency"][:3].ljust(3)
                 sts = row["status"][:7].ljust(7)
                 line = f"{ref}{amt}{ccy}{sts}"

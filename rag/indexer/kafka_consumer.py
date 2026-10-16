@@ -58,8 +58,33 @@ async def index_document_from_event(
         )
         return
 
+    # Resolve ownership from committed ledger data, never from untrusted event claims.
+    from uuid import UUID
+
+    async with pool.acquire() as conn:
+        if source_type == "TXN_NARRATIVE":
+            merchant = await conn.fetchval(
+                """SELECT min(a.merchant_id) FROM ledger_entries e
+                   JOIN accounts a ON a.account_id = e.account_id
+                   WHERE e.transaction_id = $1
+                   HAVING count(*) > 0 AND count(a.merchant_id) = count(*)
+                      AND count(DISTINCT a.merchant_id) = 1""",
+                UUID(source_ref),
+            )
+        else:
+            merchant = await conn.fetchval(
+                """SELECT f.uploaded_by FROM reconciliation_exceptions e
+                   JOIN settlement_files f ON f.batch_id = e.batch_id
+                   WHERE e.exception_id = $1""",
+                UUID(source_ref),
+            )
+    if not merchant:
+        logger.warning("index_skipped_unassigned_owner", source_ref=source_ref)
+        return
     embedding = await embed_text(content)
-    await index_document(pool, source_type, source_ref, content, embedding)
+    await index_document(
+        pool, source_type, source_ref, content, embedding, merchant_id=merchant
+    )
     logger.info("indexed_event", source_type=source_type, source_ref=source_ref)
 
 
@@ -73,7 +98,7 @@ async def consume_ledger_events():
         bootstrap_servers=settings.kafka_brokers,
         group_id="rag-indexer",
         auto_offset_reset="earliest",
-        enable_auto_commit=True,
+        enable_auto_commit=False,
     )
 
     await consumer.start()
@@ -97,8 +122,10 @@ async def consume_ledger_events():
                         pool, event, "RECONCILIATION_EXCEPTION", event["exception_id"]
                     )
 
+                await consumer.commit()
             except (json.JSONDecodeError, KeyError, ValueError) as e:
                 logger.error("event_processing_failed", topic=msg.topic, error=str(e))
+                raise
     finally:
         await consumer.stop()
         await pool.close()
