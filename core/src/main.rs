@@ -11,6 +11,21 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use ledger_core::grpc_server::LedgerGrpcServer;
 use ledger_core::pb::ledger_core_server::LedgerCoreServer;
 
+async fn shutdown_signal() {
+    #[cfg(unix)]
+    {
+        let mut terminate = signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to listen for SIGTERM");
+        tokio::select! {
+            _ = signal::ctrl_c() => {},
+            _ = terminate.recv() => {},
+        }
+    }
+    #[cfg(not(unix))]
+    signal::ctrl_c().await.expect("failed to listen for ctrl-c");
+    info!("Shutdown signal received");
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::registry()
@@ -94,10 +109,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Ok(request)
             },
         ))
-        .serve_with_shutdown(grpc_addr, async {
-            signal::ctrl_c().await.expect("failed to listen for ctrl-c");
-            info!("Shutdown signal received");
-        })
+        .serve_with_shutdown(grpc_addr, shutdown_signal())
         .await?;
 
     Ok(())

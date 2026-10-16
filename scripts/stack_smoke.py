@@ -302,6 +302,13 @@ def main():
             compose("restart", "postgres", "redis")
             wait_for(lambda: sql("SELECT 1") == "1", "database restart")
             compose("restart", "ledger-core", "gateway")
+            # Docker can allocate a new host port when restarting an ephemeral mapping.
+            address = compose("port", "gateway", "8000", capture=True).stdout.strip()
+            require(
+                address.startswith("127.0.0.1:"),
+                "Smoke gateway must remain loopback-only",
+            )
+            base = "http://" + address
             wait_for(ready, "restart recovery")
             require(
                 request(
