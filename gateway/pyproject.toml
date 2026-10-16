@@ -45,3 +45,6 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP"]
+[tool.ruff.lint.isort]
+# Generated protobuf modules belong to this service even before protoc runs.
+known-first-party = ['app', 'ledger_pb2', 'ledger_pb2_grpc']
