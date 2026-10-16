@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY gateway/pyproject.toml .
+COPY gateway/pyproject.toml gateway/README.md ./
 COPY gateway/app ./app
 RUN pip install --no-cache-dir -e .
 

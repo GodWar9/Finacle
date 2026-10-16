@@ -31,6 +31,18 @@ class LedgerGrpcClient:
         self.stub = ledger_pb2_grpc.LedgerCoreStub(self.channel)
         logger.info("grpc_client_connected", address=self.address)
 
+    async def check_ready(self):
+        # An authenticated, read-only lookup verifies the service token and RPC
+        # path as well as connectivity. No test account or write is required.
+        request = ledger_pb2.GetBalanceRequest(
+            account_id="00000000-0000-0000-0000-000000000000", merchant_id="_readiness"
+        )
+        try:
+            await self.get_balance(request)
+        except grpc.RpcError as exc:
+            if exc.code() != grpc.StatusCode.NOT_FOUND:
+                raise
+
     async def close(self):
         if self.channel:
             await self.channel.close()

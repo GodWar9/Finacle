@@ -94,3 +94,27 @@ paid infrastructure has been claimed or provisioned by this checkpoint.
 
 The existing Prometheus scrape endpoint remains available without tenant credentials.
 Keep /metrics on private ingress alongside the monitoring stack.
+
+## Container acceptance and readiness
+
+Run `python scripts/stack_smoke.py` with Docker Engine and Compose available.
+`python scripts/stack_smoke.py --check` only validates configuration; it does not
+prove runtime behavior. The acceptance run builds the real gateway/core images
+and starts isolated PostgreSQL/pgvector, Redis and Kafka/ZooKeeper services. It
+uses generated temporary credentials, a random loopback gateway port, and a unique
+Compose project; it never accepts an existing deployment URL. Its own containers
+and database volume are removed on completion. Allow time and disk space for a
+Rust release build and container images.
+
+Checks cover authenticated readiness and migrations, tenant account/transaction
+isolation, balanced posting, duplicate and conflicting retry keys, database/cache
+restart recovery, readiness during ledger outage, reversal replay, and delivery of
+the committed reversal event after Kafka returns. Results and redacted container
+logs are written under `test-results/stack/` and retained by CI for seven days.
+RAG provider quality, settlement files and the browser portal remain separate
+checks; this gate does not provision hosting or contact a model provider.
+
+`/health` remains a lightweight liveness check. `/health/ready` now checks migrated
+account schema, Redis and an authenticated read-only ledger RPC concurrently with
+bounded timeouts. A missing service or invalid service token returns 503 with only
+public status labels; connection strings and exception details are not exposed.

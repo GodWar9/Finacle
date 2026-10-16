@@ -7,6 +7,23 @@ on:
     branches: [main]
 
 jobs:
+  stack-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build containers and verify ledger, restart and Kafka recovery
+        run: python scripts/stack_smoke.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: finacle-stack-acceptance
+          path: test-results/stack/
+          retention-days: 7
+
   browser-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -145,5 +162,5 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install ruff
-      - run: ruff check gateway/ rag/
-      - run: ruff format --check gateway/ rag/
+      - run: ruff check gateway/ rag/ scripts/stack_smoke.py
+      - run: ruff format --check gateway/ rag/ scripts/stack_smoke.py
