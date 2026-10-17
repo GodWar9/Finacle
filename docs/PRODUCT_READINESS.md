@@ -79,8 +79,13 @@ foreign reversals, and reversal balance restoration.
 
 Local verification: eight browser tests, gateway tests including real PostgreSQL,
 RAG unit/authentication tests, the focused real PostgreSQL RPC test, Python lint,
-and Rust all-target Clippy. Full pgvector migrations, the Linux C++ build, Kafka
-recovery and the complete Docker stack still require their CI/target environments.
+and Rust all-target Clippy. [CI at 7c9b6f5 passed](https://github.com/GodWar9/Finacle/actions/runs/38942470021),
+including full Rust/pgvector tests, Linux C++ reconciliation tests, browser tests,
+and the real gateway/core/PostgreSQL/Redis/Kafka container acceptance gate. The
+latter verified durable retry replay after cache loss and restart, ledger outage
+readiness, reversal replay, journal balance and Kafka recovery. The Rust service
+now handles Docker SIGTERM gracefully. Provider-backed RAG, end-to-end settlement
+files, hosted TLS, backups and target-environment recovery remain separate gates.
 
 ## Hosting boundary
 
