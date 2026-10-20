@@ -123,3 +123,15 @@ checks; this gate does not provision hosting or contact a model provider.
 account schema, Redis and an authenticated read-only ledger RPC concurrently with
 bounded timeouts. A missing service or invalid service token returns 503 with only
 public status labels; connection strings and exception details are not exposed.
+
+## Settlement worker concurrency (2026-10-20)
+
+Workers now atomically claim the oldest uploaded batch with FOR UPDATE SKIP LOCKED
+and mark it PROCESSING. The reconciliation subprocess runs in a thread so its
+wait does not block the async event loop.
+
+Validation: all 57 gateway tests passed against a dedicated local PostgreSQL
+database, including simultaneous worker claims, terminal failure state, and
+event-loop responsiveness. Gateway lint and changed-file formatting passed.
+This does not establish exactly-once reconciliation or Kafka delivery across
+worker crashes; full settlement-file container acceptance remains separate.

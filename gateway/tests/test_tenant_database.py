@@ -1,6 +1,8 @@
 """Real PostgreSQL regression suite; required in CI with a dedicated *_test database."""
 
+import asyncio
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
 from uuid import uuid4
@@ -30,7 +32,13 @@ async def tenant_pool(monkeypatch):
     try:
         migrations = Path(__file__).resolve().parents[2] / "db" / "migrations"
         async with pool.acquire() as conn:
-            for name in ("001_initial_schema.sql", "004_settlement_files.sql", "008_tenant_ownership.sql"):
+            for name in (
+                "001_initial_schema.sql",
+                "004_settlement_files.sql",
+                "005_settlement_files_error_message.sql",
+                "006_settlement_files_started_at.sql",
+                "008_tenant_ownership.sql",
+            ):
                 await conn.execute((migrations / name).read_text())
 
         async def get_pool():
@@ -117,3 +125,84 @@ async def test_history_paginates_whole_transactions_and_hides_foreign_or_mixed_e
         assert int(rows[0][20:33]) == 100
     finally:
         export.unlink()
+
+
+@pytest.mark.asyncio
+async def test_concurrent_settlement_workers_claim_each_batch_once(tenant_pool):
+    from app.settlement_processor import SettlementProcessor
+
+    batch = uuid4()
+    await tenant_pool.execute(
+        "INSERT INTO settlement_files(batch_id,filename,content,uploaded_by) VALUES($1,'bank.txt',$2,'merchant_a')",
+        batch,
+        b"synthetic",
+    )
+    started = asyncio.Event()
+    release = asyncio.Event()
+    barrier = asyncio.Barrier(2)
+    calls = []
+
+    class ClaimConnection:
+        def __init__(self, conn):
+            self.conn = conn
+
+        def __getattr__(self, name):
+            return getattr(self.conn, name)
+
+        async def fetchrow(self, query, *args):
+            row = await self.conn.fetchrow(query, *args)
+            # Force both claim queries to return before either worker proceeds.
+            # A SELECT followed by a separate UPDATE lets both claim the row;
+            # the atomic UPDATE returns it to only one worker.
+            await barrier.wait()
+            return row
+
+    class ClaimPool:
+        @asynccontextmanager
+        async def acquire(self):
+            async with tenant_pool.acquire() as conn:
+                yield ClaimConnection(conn)
+
+    class ControlledProcessor(SettlementProcessor):
+        async def run_reconciliation(self, batch_id, content):
+            calls.append(batch_id)
+            started.set()
+            await release.wait()
+            return 0
+
+    pool = ClaimPool()
+    tasks = [asyncio.create_task(ControlledProcessor(pool, None).process_pending()) for _ in range(2)]
+    try:
+        await asyncio.wait_for(started.wait(), timeout=5)
+        assert (
+            await tenant_pool.fetchval("SELECT status FROM settlement_files WHERE batch_id=$1", batch) == "PROCESSING"
+        )
+        done, _ = await asyncio.wait(tasks, timeout=1, return_when=asyncio.FIRST_COMPLETED)
+        assert len(done) == 1, "The worker without a claim must return without reconciliation"
+        assert calls == [batch]
+    finally:
+        release.set()
+        await asyncio.wait_for(asyncio.gather(*tasks), timeout=5)
+    assert await tenant_pool.fetchval("SELECT status FROM settlement_files WHERE batch_id=$1", batch) == "COMPLETED"
+
+
+@pytest.mark.asyncio
+async def test_settlement_failure_records_failed_terminal_state(tenant_pool):
+    from app.settlement_processor import SettlementProcessor
+
+    batch = uuid4()
+    await tenant_pool.execute(
+        "INSERT INTO settlement_files(batch_id,filename,content,uploaded_by) VALUES($1,'bank.txt',$2,'merchant_a')",
+        batch,
+        b"synthetic",
+    )
+
+    class FailingProcessor(SettlementProcessor):
+        async def run_reconciliation(self, batch_id, content):
+            raise RuntimeError("simulated engine failure")
+
+    with pytest.raises(RuntimeError, match="simulated engine failure"):
+        await FailingProcessor(tenant_pool, None).process_pending()
+    row = await tenant_pool.fetchrow("SELECT status, completed_at FROM settlement_files WHERE batch_id=$1", batch)
+    assert row["status"] == "FAILED"
+    assert row["completed_at"] is not None

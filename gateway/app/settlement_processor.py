@@ -49,12 +49,16 @@ class SettlementProcessor:
         async with self.pg_pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
-                SELECT batch_id, filename, content
-                FROM settlement_files
-                WHERE status = 'UPLOADED'
-                ORDER BY created_at
-                LIMIT 1
-                FOR UPDATE SKIP LOCKED
+                UPDATE settlement_files
+                SET status = 'PROCESSING', started_at = NOW()
+                WHERE batch_id = (
+                    SELECT batch_id FROM settlement_files
+                    WHERE status = 'UPLOADED'
+                    ORDER BY created_at, batch_id
+                    LIMIT 1
+                    FOR UPDATE SKIP LOCKED
+                )
+                RETURNING batch_id, filename, content
                 """
             )
             if not row:
@@ -65,10 +69,6 @@ class SettlementProcessor:
             content = row["content"]
 
             logger.info("processing_settlement", batch_id=batch_id, filename=filename)
-
-            await conn.execute(
-                "UPDATE settlement_files SET status = 'PROCESSING', started_at = NOW() WHERE batch_id = $1", batch_id
-            )
 
             try:
                 exception_count = await self.run_reconciliation(batch_id, content)
@@ -127,7 +127,7 @@ class SettlementProcessor:
 
             logger.info("running_recon_engine", batch_id=batch_id, cmd=" ".join(cmd))
 
-            result = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=300)
+            result = await asyncio.to_thread(subprocess.run, cmd, capture_output=True, text=True, env=env, timeout=300)
 
             if result.returncode != 0:
                 logger.error("recon_engine_failed", batch_id=batch_id, stderr=result.stderr)
