@@ -100,6 +100,36 @@ paid infrastructure has been claimed or provisioned by this checkpoint.
 The existing Prometheus scrape endpoint remains available without tenant credentials.
 Keep /metrics on private ingress alongside the monitoring stack.
 
+## Standalone deployment topology
+
+`deploy/compose.yml` is a separate, non-development topology for a single host. It
+is not combined with the development `docker-compose.yml`. Caddy terminates TLS on
+the public edge and proxies only to the gateway; the application services sit on an
+internal-only network, and the RAG services additionally reach a provider network.
+PostgreSQL, Redis and Kafka use named volumes, and the topology expects a real
+public DNS hostname for `DOMAIN`.
+
+`scripts/host_config.py` generates and validates the private configuration. It
+writes `deploy/.env` with mode 0600 using `O_EXCL`, so it refuses to overwrite an
+existing file. Every credential is an independent random URL-safe value; the script
+rejects reused, weak or placeholder secrets, a domain that is not a public DNS
+hostname, and merchant identifiers that do not match `API_KEYS`.
+
+```text
+python scripts/host_config.py generate --domain ledger.example-host.net --merchant merchant_1
+python scripts/host_config.py check --compose-check
+```
+
+`generate` prints no credential values. `check` re-reads the file, validates it, and
+with `--compose-check` runs `docker compose config --quiet` against
+`deploy/compose.yml` without starting containers. It refuses to run when a shell
+override conflicts with the file, so an ambient environment variable cannot silently
+replace a stored secret. The generated `deploy/.env` is git-ignored.
+
+This topology is configuration and orchestration only. It does not provision
+infrastructure, obtain certificates, configure backups, or verify target-environment
+recovery, and the gateway portal rate limiter remains process-local.
+
 ## Container acceptance and readiness
 
 Run `python scripts/stack_smoke.py` with Docker Engine and Compose available.

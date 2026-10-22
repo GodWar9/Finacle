@@ -40,6 +40,8 @@ Finacle/
 ├── docs/                      00..07 design docs, BUILD_CHECKLIST, DESIGN_DECISIONS,
 │                              PROJECT_EXPLANATION.md, HANDOVER_DOC.md (this file)
 ├── demo.py / generate_data.py local demo / live-data generators
+├── scripts/                    stack_smoke.py (container acceptance), host_config.py
+├── deploy/                     standalone host topology: compose.yml + Caddyfile (TLS edge)
 ├── docker-compose.yml         full stack + batch profile
 └── .env.example               env template (copy to .env)
 ```

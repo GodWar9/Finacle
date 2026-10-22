@@ -162,5 +162,5 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install ruff
-      - run: ruff check gateway/ rag/ scripts/stack_smoke.py
-      - run: ruff format --check gateway/ rag/ scripts/stack_smoke.py
+      - run: ruff check gateway/ rag/ scripts/stack_smoke.py scripts/host_config.py
+      - run: ruff format --check gateway/ rag/ scripts/stack_smoke.py scripts/host_config.py

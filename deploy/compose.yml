@@ -1,0 +1,196 @@
+# Standalone topology. Do not combine with development docker-compose.yml.
+name: finacle-host
+
+x-service: &service
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+  networks: [private]
+
+x-rag-env: &rag-env
+  DATABASE_URL: postgresql://ledger_app:${POSTGRES_PASSWORD:?Run host_config.py generate}@postgres:5432/ledger
+  KAFKA_BROKERS: kafka:9092
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  RAG_API_KEYS: ${RAG_API_KEYS:-}
+  RAG_ADMIN_KEY: ${RAG_ADMIN_KEY:-}
+  EMBEDDING_MODEL: text-embedding-3-small
+  EMBEDDING_DIMENSION: "1536"
+
+services:
+  caddy:
+    <<: *service
+    image: caddy:2-alpine
+    environment:
+      DOMAIN: ${DOMAIN:?Set the public DNS hostname}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [edge, private]
+    depends_on:
+      gateway:
+        condition: service_healthy
+
+  postgres:
+    <<: *service
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ledger
+      POSTGRES_USER: ledger_app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run host_config.py generate}
+    volumes: ["postgres_data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ledger_app -d ledger"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  redis:
+    <<: *service
+    image: redis:7
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    volumes: ["redis_data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  zookeeper:
+    <<: *service
+    image: confluentinc/cp-zookeeper:7.6.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: "2181"
+      KAFKA_HEAP_OPTS: -Xms128m -Xmx256m
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_log:/var/lib/zookeeper/log
+
+  kafka:
+    <<: *service
+    image: confluentinc/cp-kafka:7.6.0
+    depends_on: [zookeeper]
+    environment:
+      KAFKA_BROKER_ID: "1"
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_HEAP_OPTS: -Xms256m -Xmx512m
+      KAFKA_LOG_RETENTION_HOURS: "168"
+      KAFKA_LOG_RETENTION_BYTES: "1073741824"
+    volumes: ["kafka_data:/var/lib/kafka/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
+
+  ledger-core:
+    <<: *service
+    build:
+      context: ..
+      dockerfile: core/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://ledger_app:${POSTGRES_PASSWORD:?Run host_config.py generate}@postgres:5432/ledger
+      KAFKA_BROKERS: kafka:9092
+      LEDGER_SERVICE_TOKEN: ${LEDGER_SERVICE_TOKEN:?Run host_config.py generate}
+      RUST_LOG: info
+    stop_grace_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  gateway:
+    <<: *service
+    build:
+      context: ..
+      dockerfile: gateway/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://ledger_app:${POSTGRES_PASSWORD:?Run host_config.py generate}@postgres:5432/ledger
+      REDIS_URL: redis://redis:6379
+      API_KEYS: ${API_KEYS:?Run host_config.py generate}
+      LEDGER_CORE_ADDR: ledger-core:50051
+      LEDGER_SERVICE_TOKEN: ${LEDGER_SERVICE_TOKEN:?Run host_config.py generate}
+      PORTAL_PASSWORD: ${PORTAL_PASSWORD:?Run host_config.py generate}
+      PORTAL_SESSION_SECRET: ${PORTAL_SESSION_SECRET:?Run host_config.py generate}
+      PORTAL_MERCHANT_ID: ${PORTAL_MERCHANT_ID:?Set the operator merchant}
+      PORTAL_ORIGIN: https://${DOMAIN:?Set the public DNS hostname}
+      RAG_INTERNAL_URL: http://rag-copilot:8001
+      RAG_SERVICE_KEY: ${RAG_SERVICE_KEY:-}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:?Run host_config.py generate}
+      WEBHOOK_CLEARING_ACCOUNTS: ${WEBHOOK_CLEARING_ACCOUNTS:?Set the merchant clearing mapping}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready', timeout=5).read()"]
+      interval: 10s
+      timeout: 8s
+      retries: 30
+      start_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ledger-core:
+        condition: service_started
+
+  settlement-processor:
+    <<: *service
+    build:
+      context: ..
+      dockerfile: settlement-processor/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://ledger_app:${POSTGRES_PASSWORD:?Run host_config.py generate}@postgres:5432/ledger
+      KAFKA_BROKERS: kafka:9092
+      RECON_ENGINE_PATH: /app/recon_engine
+      POLL_INTERVAL: "10"
+    stop_grace_period: 330s
+    depends_on:
+      gateway:
+        condition: service_healthy
+
+  rag-copilot:
+    <<: *service
+    profiles: [rag]
+    build: ../rag
+    environment: *rag-env
+    networks: [private, provider]
+    depends_on:
+      gateway:
+        condition: service_healthy
+
+  rag-indexer:
+    <<: *service
+    profiles: [rag]
+    build: ../rag
+    environment: *rag-env
+    networks: [private, provider]
+    command: ["python", "-m", "indexer.kafka_consumer"]
+    depends_on:
+      gateway:
+        condition: service_healthy
+
+networks:
+  edge: {}
+  private:
+    internal: true
+  provider: {}
+
+volumes:
+  postgres_data: {}
+  redis_data: {}
+  kafka_data: {}
+  zookeeper_data: {}
+  zookeeper_log: {}
+  caddy_data: {}
+  caddy_config: {}
+
