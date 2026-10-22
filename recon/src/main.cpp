@@ -10,6 +10,7 @@
 #include <chrono>
 #include <random>
 #include <sstream>
+#include <unordered_set>
 
 static std::string generate_batch_id() {
     std::random_device rd;
@@ -93,13 +94,14 @@ int main(int argc, char* argv[]) {
         std::cout << "Reconciliation completed in " << duration.count() << " ms\n";
         std::cout << "Exceptions found: " << exceptions.size() << "\n";
         
-        size_t matched_count = bank_records.size()
-                               - std::count_if(exceptions.begin(), exceptions.end(),
-                                   [](const auto& e) { return e.type == recon::ExceptionType::MISSING_IN_LEDGER; });
+        std::unordered_set<std::string> failed_refs;
+        for (const auto& exc : exceptions) failed_refs.insert(exc.bank_reference);
+        const auto matched_count = static_cast<size_t>(std::count_if(
+            bank_records.begin(), bank_records.end(),
+            [&](const auto& record) { return !failed_refs.contains(record.external_reference); }));
         
         recon::DbWriter writer(db_url);
-        writer.write_exceptions(exceptions);
-        writer.write_batch_summary(batch_id, matched_count, exceptions.size());
+        writer.write_results(batch_id, matched_count, exceptions);
         
         std::cout << "Results written to database. Batch ID: " << batch_id << "\n";
         

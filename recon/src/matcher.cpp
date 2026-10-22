@@ -4,6 +4,7 @@
 #include <shared_mutex>
 #include <unordered_map>
 #include <unordered_set>
+#include <stdexcept>
 
 namespace recon {
 
@@ -59,9 +60,17 @@ void Matcher::reconcile_parallel(
     ledger_index.reserve(ledger_records.size() * 2);
     
     for (const auto& record : ledger_records) {
-        ledger_index[record.external_reference] = &record;
+        if (!ledger_index.emplace(record.external_reference, &record).second) {
+            throw std::invalid_argument("Ambiguous duplicate ledger reference");
+        }
     }
     
+    for (const auto& record : bank_records) {
+        const auto found = ledger_index.find(record.external_reference);
+        if (found != ledger_index.end() && found->second->currency != record.currency) {
+            throw std::invalid_argument("Settlement currency differs from ledger");
+        }
+    }
     std::mutex exceptions_mutex;
     std::shared_mutex index_mutex;
     std::unordered_map<std::string, bool> matched_ledger;

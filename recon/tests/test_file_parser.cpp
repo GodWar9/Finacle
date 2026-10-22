@@ -62,3 +62,27 @@ TEST(FileParserTest, ParseFile) {
 
     std::remove(test_file.c_str());
 }
+
+TEST(FileParserTest, RejectsMalformedAndOverflowAmounts) {
+    EXPECT_THROW(recon::parse_amount_minor("12oops34"), std::invalid_argument);
+    EXPECT_THROW(recon::parse_amount_minor("999999999999999999999"), std::invalid_argument);
+    recon::FixedWidthLayout layout;
+    EXPECT_FALSE(recon::parse_line("ORDER_001           00000000x1000INRPOSTED ", layout, recon::Source::BANK_FILE));
+}
+
+TEST(FileParserTest, DoesNotSilentlyDropMalformedRows) {
+    const std::string path = "/tmp/recon-malformed.txt";
+    { std::ofstream file(path); file << "truncated\n"; }
+    recon::FixedWidthLayout layout;
+    EXPECT_THROW(recon::parse_file(path, layout, recon::Source::BANK_FILE), std::runtime_error);
+    std::remove(path.c_str());
+}
+
+TEST(FileParserTest, RejectsEmptyBankButAllowsEmptyLedger) {
+    const std::string path = "/tmp/recon-empty.txt";
+    { std::ofstream file(path); file << "\n"; }
+    recon::FixedWidthLayout layout;
+    EXPECT_THROW(recon::parse_file(path, layout, recon::Source::BANK_FILE), std::runtime_error);
+    EXPECT_TRUE(recon::parse_file(path, layout, recon::Source::LEDGER).empty());
+    std::remove(path.c_str());
+}

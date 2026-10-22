@@ -206,3 +206,78 @@ async def test_settlement_failure_records_failed_terminal_state(tenant_pool):
     row = await tenant_pool.fetchrow("SELECT status, completed_at FROM settlement_files WHERE batch_id=$1", batch)
     assert row["status"] == "FAILED"
     assert row["completed_at"] is not None
+
+
+@pytest.mark.asyncio
+async def test_settlement_upload_replays_only_identical_owned_files(tenant_pool, monkeypatch):
+    from io import BytesIO
+
+    from starlette.datastructures import UploadFile
+
+    from app.routes import settlements
+
+    async def pool():
+        return tenant_pool
+
+    monkeypatch.setattr(settlements, "_get_pool", pool)
+    batch = uuid4()
+
+    async def upload(content=b"bank file", merchant="merchant_a"):
+        return await settlements.upload_settlement_file(
+            UploadFile(BytesIO(content), filename="bank.txt"), batch, merchant
+        )
+
+    assert await upload() == await upload()
+    for content, merchant in ((b"changed", "merchant_a"), (b"bank file", "merchant_b")):
+        with pytest.raises(HTTPException) as rejected:
+            await upload(content, merchant)
+        assert rejected.value.status_code == 409
+    assert await tenant_pool.fetchval("SELECT count(*) FROM settlement_files WHERE batch_id=$1", batch) == 1
+
+
+@pytest.mark.asyncio
+async def test_committed_settlement_is_not_marked_failed_after_worker_error(tenant_pool):
+    from app.settlement_processor import SettlementProcessor
+
+    batch = uuid4()
+    await tenant_pool.execute(
+        "INSERT INTO settlement_files(batch_id,filename,content,uploaded_by) VALUES($1,'bank.txt',$2,'merchant_a')",
+        batch,
+        b"synthetic",
+    )
+
+    class CommittedProcessor(SettlementProcessor):
+        async def run_reconciliation(self, batch_id, content):
+            await tenant_pool.execute("UPDATE settlement_files SET status='COMPLETED' WHERE batch_id=$1", batch_id)
+            raise RuntimeError("simulated lost acknowledgement after commit")
+
+    with pytest.raises(RuntimeError, match="lost acknowledgement"):
+        await CommittedProcessor(tenant_pool).process_pending()
+    assert await tenant_pool.fetchval("SELECT status FROM settlement_files WHERE batch_id=$1", batch) == "COMPLETED"
+
+
+@pytest.mark.asyncio
+async def test_generated_batch_survives_missing_response_cache(tenant_pool, monkeypatch):
+    from io import BytesIO
+
+    from starlette.datastructures import UploadFile
+
+    from app.routes import settlements
+
+    async def pool():
+        return tenant_pool
+
+    monkeypatch.setattr(settlements, "_get_pool", pool)
+
+    async def upload(merchant="merchant_a"):
+        return await settlements.upload_settlement_file(
+            UploadFile(BytesIO(b"bank file"), filename="bank.txt"), None, merchant, "same-client-key"
+        )
+
+    first = await upload()
+    await tenant_pool.execute("UPDATE settlement_files SET status='COMPLETED' WHERE batch_id=$1", first["batch_id"])
+    replay = await upload()
+    assert replay["batch_id"] == first["batch_id"]
+    assert replay["status"] == "COMPLETED"
+    assert (await upload("merchant_b"))["batch_id"] != first["batch_id"]
+    assert await tenant_pool.fetchval("SELECT count(*) FROM settlement_files") == 2

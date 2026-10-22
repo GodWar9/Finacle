@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cctype>
 #include <charconv>
+#include <stdexcept>
 
 namespace recon {
 
@@ -24,22 +25,13 @@ int64_t parse_amount_minor(std::string_view amount_str) {
     std::string trimmed = trim(std::string(amount_str));
     if (trimmed.empty()) return 0;
     
-    bool negative = false;
-    if (trimmed[0] == '-') {
-        negative = true;
-        trimmed = trimmed.substr(1);
-    } else if (trimmed[0] == '+') {
-        trimmed = trimmed.substr(1);
-    }
-    
+    if (trimmed.front() == '+') trimmed.erase(0, 1);
     int64_t result = 0;
-    for (char c : trimmed) {
-        if (std::isdigit(c)) {
-            result = result * 10 + (c - '0');
-        }
+    const auto parsed = std::from_chars(trimmed.data(), trimmed.data() + trimmed.size(), result);
+    if (parsed.ec != std::errc{} || parsed.ptr != trimmed.data() + trimmed.size()) {
+        throw std::invalid_argument("Invalid integer amount");
     }
-    
-    return negative ? -result : result;
+    return result;
 }
 
 std::optional<SettlementRecord> parse_line(std::string_view line, const FixedWidthLayout& layout, Source source) {
@@ -56,7 +48,9 @@ std::optional<SettlementRecord> parse_line(std::string_view line, const FixedWid
         return std::nullopt;
     }
     
-    int64_t amount = parse_amount_minor(amt_str);
+    int64_t amount;
+    try { amount = parse_amount_minor(amt_str); }
+    catch (const std::invalid_argument&) { return std::nullopt; }
     if (amount <= 0) {
         return std::nullopt;
     }
@@ -90,11 +84,15 @@ std::vector<SettlementRecord> parse_file(const std::string& filepath, const Fixe
         if (line.empty()) continue;
         
         auto record = parse_line(line, layout, source);
-        if (record) {
-            records.push_back(*record);
+        if (!record) {
+            throw std::runtime_error("Invalid settlement row " + std::to_string(line_num));
         }
+        records.push_back(*record);
     }
     
+    if (source == Source::BANK_FILE && records.empty()) {
+        throw std::runtime_error("Bank settlement file has no records");
+    }
     return records;
 }
 

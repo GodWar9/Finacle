@@ -1,5 +1,4 @@
 import asyncio
-import json
 import os
 import subprocess
 import tempfile
@@ -7,7 +6,6 @@ from datetime import UTC, datetime, timedelta
 
 import asyncpg
 import structlog
-from aiokafka import AIOKafkaProducer
 
 from app.config import get_settings
 
@@ -23,7 +21,7 @@ REQUEUE_STALE_AFTER_SECONDS = 360
 
 
 class SettlementProcessor:
-    def __init__(self, pg_pool: asyncpg.Pool, kafka_producer: AIOKafkaProducer, poll_interval: int = 10):
+    def __init__(self, pg_pool: asyncpg.Pool, kafka_producer=None, poll_interval: int = 10):
         self.pg_pool = pg_pool
         self.kafka_producer = kafka_producer
         self.poll_interval = poll_interval
@@ -73,7 +71,8 @@ class SettlementProcessor:
             try:
                 exception_count = await self.run_reconciliation(batch_id, content)
                 await conn.execute(
-                    "UPDATE settlement_files SET status = 'COMPLETED', completed_at = NOW() WHERE batch_id = $1",
+                    "UPDATE settlement_files SET status = 'COMPLETED', completed_at = NOW() "
+                    "WHERE batch_id = $1 AND status = 'PROCESSING'",
                     batch_id,
                 )
                 logger.info("settlement_completed", batch_id=batch_id, exceptions=exception_count)
@@ -81,7 +80,7 @@ class SettlementProcessor:
                 await conn.execute(
                     "UPDATE settlement_files SET status = 'FAILED', "
                     "error_message = $1, completed_at = NOW() "
-                    "WHERE batch_id = $2",
+                    "WHERE batch_id = $2 AND status = 'PROCESSING'",
                     str(e),
                     batch_id,
                 )
@@ -107,7 +106,7 @@ class SettlementProcessor:
                 logger.warning("requeued_stale_settlement", batch_id=row["batch_id"])
 
     async def run_reconciliation(self, batch_id: str, bank_file_content: bytes) -> int:
-        """Run the C++ recon engine, then publish Kafka events for any exceptions."""
+        """The engine atomically commits results and durable outbox events."""
         with tempfile.NamedTemporaryFile(mode="wb", suffix=".txt", delete=False) as bank_file:
             bank_file.write(bank_file_content)
             bank_file_path = bank_file.name
@@ -119,7 +118,7 @@ class SettlementProcessor:
                 RECON_ENGINE_PATH,
                 f"--ledger-export={ledger_export_path}",
                 f"--bank-file={bank_file_path}",
-                f"--batch-id={batch_id}",
+                f"--batch-id={str(batch_id)}",
             ]
 
             env = os.environ.copy()
@@ -135,58 +134,20 @@ class SettlementProcessor:
 
             logger.info("recon_engine_completed", batch_id=batch_id, stdout=result.stdout)
 
-            exception_count = await self.publish_recon_events(batch_id)
-            return exception_count
+            async with self.pg_pool.acquire() as conn:
+                summary = await conn.fetchrow(
+                    "SELECT exception_count FROM reconciliation_batch_summary WHERE batch_id=$1 AND status='COMPLETED'",
+                    batch_id,
+                )
+                if summary is None:
+                    raise RuntimeError("Reconciliation did not commit a completed summary")
+                return summary["exception_count"]
 
         finally:
             if os.path.exists(bank_file_path):
                 os.unlink(bank_file_path)
             if "ledger_export_path" in locals() and os.path.exists(ledger_export_path):
                 os.unlink(ledger_export_path)
-
-    async def publish_recon_events(self, batch_id: str) -> int:
-        """Query exceptions written by the recon engine and publish Kafka events."""
-        async with self.pg_pool.acquire() as conn:
-            summary = await conn.fetchrow(
-                "SELECT matched_count, exception_count FROM reconciliation_batch_summary WHERE batch_id = $1",
-                batch_id,
-            )
-            exceptions = await conn.fetch(
-                "SELECT exception_id, exception_type, "
-                "ledger_transaction_id "
-                "FROM reconciliation_exceptions WHERE batch_id = $1",
-                batch_id,
-            )
-
-        for exc in exceptions:
-            event = {
-                "exception_id": str(exc["exception_id"]),
-                "exception_type": exc["exception_type"],
-                "transaction_id": str(exc["ledger_transaction_id"]) if exc["ledger_transaction_id"] else None,
-                "batch_id": batch_id,
-            }
-            await self.kafka_producer.send_and_wait(
-                "reconciliation.exception.raised",
-                key=str(exc["exception_id"]).encode(),
-                value=json.dumps(event).encode(),
-            )
-
-        if summary:
-            batch_event = {
-                "batch_id": batch_id,
-                "matched_count": summary["matched_count"],
-                "exception_count": summary["exception_count"],
-            }
-            await self.kafka_producer.send_and_wait(
-                "reconciliation.batch.completed",
-                key=batch_id.encode(),
-                value=json.dumps(batch_event).encode(),
-            )
-
-        logger.info(
-            "recon_events_published", batch_id=batch_id, exceptions=len(exceptions), has_summary=summary is not None
-        )
-        return len(exceptions)
 
     async def generate_ledger_export(self, batch_id: str) -> str:
         async with self.pg_pool.acquire() as conn:
@@ -229,14 +190,11 @@ class SettlementProcessor:
 
 async def run_settlement_processor(poll_interval: int = 10):
     pg_pool = await asyncpg.create_pool(settings.database_url, min_size=2, max_size=5)
-    kafka_producer = AIOKafkaProducer(bootstrap_servers=settings.kafka_brokers)
-    await kafka_producer.start()
-    processor = SettlementProcessor(pg_pool, kafka_producer, poll_interval)
+    processor = SettlementProcessor(pg_pool, poll_interval=poll_interval)
     try:
         await processor.start()
     finally:
         processor.stop()
-        await kafka_producer.stop()
         await pg_pool.close()
 
 

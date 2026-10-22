@@ -127,7 +127,7 @@ async def test_upload_settlement_file():
     mock_file.read = AsyncMock(return_value=b"test content")
 
     with patch("app.routes.settlements._get_pool", return_value=mock_pool):
-        result = await settlements.upload_settlement_file(mock_file, None, "merchant_1")
+        result = await settlements.upload_settlement_file(mock_file, None, "merchant_1", "synthetic-upload-key")
 
         assert "batch_id" in result
         assert result["filename"] == "settlement.txt"

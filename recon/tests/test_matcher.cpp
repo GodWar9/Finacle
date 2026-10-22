@@ -190,3 +190,11 @@ TEST(MatcherTest, MultipleExceptions) {
     EXPECT_EQ(missing_ledger, 1);
     EXPECT_EQ(missing_bank, 1);
 }
+TEST(MatcherTest, RejectsCurrencyMismatchAndAmbiguousLedgerReference) {
+    auto ledger = make_record("ORDER_001", 100, "POSTED", recon::Source::LEDGER);
+    auto bank = ledger;
+    bank.currency = "USD";
+    recon::Matcher matcher(recon::MatchConfig{});
+    EXPECT_THROW(matcher.reconcile({ledger}, {bank}, "batch"), std::invalid_argument);
+    EXPECT_THROW(matcher.reconcile({ledger, ledger}, {ledger}, "batch"), std::invalid_argument);
+}

@@ -7,6 +7,7 @@ import secrets
 import subprocess
 import tempfile
 import time
+import uuid
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -98,6 +99,14 @@ def main():
                     "KAFKA_BROKERS": "kafka:9092",
                     "LEDGER_SERVICE_TOKEN": token,
                 },
+            },
+            "settlement-processor": {
+                "build": {
+                    "context": str(ROOT),
+                    "dockerfile": "settlement-processor/Dockerfile",
+                },
+                "depends_on": {"postgres": {"condition": "service_healthy"}},
+                "environment": {"DATABASE_URL": database, "POLL_INTERVAL": "1"},
             },
             "gateway": {
                 "build": {"context": str(ROOT), "dockerfile": "gateway/Dockerfile"},
@@ -345,6 +354,118 @@ def main():
 
             # Stop the broker, commit a reversal, then prove queued event recovery.
             compose("stop", "kafka")
+
+            # Exercise the real upload API, Python worker, C++ engine and outbox
+            # while Kafka is unavailable. Completion must not depend on the broker.
+            def upload(content, batch=None, key=key_a, expected=202):
+                batch = batch or str(uuid.uuid4())
+                boundary = "acceptance-boundary"
+                payload = (
+                    (
+                        f'--{boundary}\r\nContent-Disposition: form-data; name="batch_id"\r\n\r\n{batch}\r\n'
+                        f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="bank.txt"\r\n'
+                        "Content-Type: text/plain\r\n\r\n"
+                    ).encode()
+                    + content
+                    + f"\r\n--{boundary}--\r\n".encode()
+                )
+                req = Request(
+                    base + "/api/v1/settlements/upload",
+                    data=payload,
+                    headers={
+                        "Content-Type": "multipart/form-data; boundary=" + boundary,
+                        "X-API-Key": key,
+                        "Idempotency-Key": secrets.token_hex(12),
+                    },
+                )
+                try:
+                    response = urlopen(req, timeout=10)
+                except HTTPError as error:
+                    response = error
+                with response:
+                    require(
+                        response.status == expected,
+                        f"Settlement upload returned {response.status}",
+                    )
+                return batch
+
+            bank = (
+                f"{posted['transaction_id'][:20]:20}{1300:13}INRPOSTED \n"
+                f"{'bank-only':20}{500:13}INRPOSTED \n"
+            ).encode()
+            batch = upload(bank)
+            status_path = f"/api/v1/settlements/{batch}/status"
+            wait_for(
+                lambda: request(status_path)["status"] == "COMPLETED",
+                "settlement file completion",
+            )
+            status = request(status_path)
+            require(
+                status["processed_count"] == 0 and status["failed_count"] == 2,
+                "Incorrect settlement counters",
+            )
+            request(status_path, key=key_b, expected=404)
+            exceptions = request(f"/api/v1/reconciliation/exceptions?batch_id={batch}")[
+                "exceptions"
+            ]
+            require(
+                {row["exception_type"] for row in exceptions}
+                == {"AMOUNT_MISMATCH", "MISSING_IN_LEDGER"},
+                "Settlement results differ from bank file or include another tenant",
+            )
+            require(
+                request(
+                    f"/api/v1/reconciliation/exceptions?batch_id={batch}", key=key_b
+                )["exceptions"]
+                == [],
+                "Foreign settlement exceptions leaked",
+            )
+            events_query = f"SELECT count(*) FROM outbox_events WHERE payload_json->>'batch_id'='{batch}'"
+            require(
+                sql(events_query) == "3", "Settlement results and durable events differ"
+            )
+            require(
+                sql(events_query + " AND NOT published") == "3",
+                "Events lost during Kafka outage",
+            )
+            upload(bank, batch=batch)  # Durable replay with a fresh HTTP key.
+            upload(bank + b"changed", batch=batch, expected=409)
+            upload(bank, batch=batch, key=key_b, expected=409)
+            # Simulate lost worker acknowledgement after the engine committed.
+            sql(
+                f"UPDATE settlement_files SET status='UPLOADED' WHERE batch_id='{batch}'"
+            )
+            wait_for(
+                lambda: request(status_path)["status"] == "COMPLETED",
+                "settlement replay",
+            )
+            require(sql(events_query) == "3", "Replay duplicated settlement events")
+            require(
+                sql(
+                    f"SELECT count(*) FROM reconciliation_exceptions WHERE batch_id='{batch}'"
+                )
+                == "2",
+                "Replay duplicated reconciliation exceptions",
+            )
+            malformed = upload(b"malformed bank row\n")
+            wait_for(
+                lambda: (
+                    request(f"/api/v1/settlements/{malformed}/status")["status"]
+                    == "FAILED"
+                ),
+                "malformed file rejection",
+            )
+            require(
+                sql(
+                    f"SELECT count(*) FROM reconciliation_batch_summary WHERE batch_id='{malformed}'"
+                )
+                == "0",
+                "Malformed file committed partial results",
+            )
+            passed.append(
+                "real settlement file, tenant isolation, atomic results/outbox, replay and malformed input"
+            )
+
             reverse_path = (
                 "/api/v1/transactions/" + posted["transaction_id"] + "/reverse"
             )
@@ -412,6 +533,26 @@ def main():
                 )
                 == "0",
                 "Journal invariant failed",
+            )
+            settlement_event = compose(
+                "exec",
+                "-T",
+                "kafka",
+                "kafka-console-consumer",
+                "--bootstrap-server",
+                "localhost:9092",
+                "--topic",
+                "reconciliation.batch.completed",
+                "--from-beginning",
+                "--max-messages",
+                "1",
+                "--timeout-ms",
+                "15000",
+                capture=True,
+            ).stdout
+            require(
+                json.loads(settlement_event.strip())["batch_id"] == batch,
+                "Settlement completion did not recover through Kafka",
             )
             passed.append(
                 "reversal replay, journal invariant and real Kafka outbox recovery"

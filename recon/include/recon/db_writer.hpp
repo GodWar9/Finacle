@@ -11,8 +11,8 @@ class DbWriter {
 public:
     explicit DbWriter(const std::string& conn_string);
     
-    void write_exceptions(const std::vector<ReconciliationException>& exceptions);
-    void write_batch_summary(const std::string& batch_id, size_t matched_count, size_t exception_count);
+    void write_results(const std::string& batch_id, size_t matched_count,
+                       const std::vector<ReconciliationException>& exceptions);
     
 private:
     std::string conn_string_;

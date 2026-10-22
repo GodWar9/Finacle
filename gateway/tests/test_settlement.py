@@ -37,57 +37,17 @@ async def test_settlement_processor_processes_pending():
 
 
 @pytest.mark.asyncio
-async def test_publish_recon_events():
-    from app.settlement_processor import SettlementProcessor
-
-    batch_id = str(uuid4())
-    exception_id = uuid4()
-    ledger_txn_id = uuid4()
-
-    mock_pool = AsyncMock()
-    mock_conn = AsyncMock()
-    mock_pool.acquire = MagicMock(return_value=MockAsyncCtx(mock_conn))
-
-    mock_conn.fetchrow = AsyncMock(
-        return_value={
-            "matched_count": 100,
-            "exception_count": 2,
-        }
-    )
-    mock_conn.fetch = AsyncMock(
-        return_value=[
-            {
-                "exception_id": exception_id,
-                "exception_type": "AMOUNT_MISMATCH",
-                "ledger_transaction_id": ledger_txn_id,
-            }
-        ]
-    )
-
-    mock_kafka = AsyncMock()
-
-    processor = SettlementProcessor(mock_pool, mock_kafka)
-    count = await processor.publish_recon_events(batch_id)
-
-    assert count == 1
-    assert mock_kafka.send_and_wait.call_count == 2
-
-    first_call = mock_kafka.send_and_wait.call_args_list[0]
-    assert first_call[0][0] == "reconciliation.exception.raised"
-
-    second_call = mock_kafka.send_and_wait.call_args_list[1]
-    assert second_call[0][0] == "reconciliation.batch.completed"
-
-
-@pytest.mark.asyncio
 async def test_reconciliation_subprocess_does_not_block_event_loop(monkeypatch, tmp_path):
     from app.settlement_processor import SettlementProcessor
 
     ledger = tmp_path / "ledger.txt"
     ledger.write_text("synthetic")
-    processor = SettlementProcessor(AsyncMock(), AsyncMock())
+    conn = AsyncMock()
+    conn.fetchrow.return_value = {"exception_count": 0}
+    pool = AsyncMock()
+    pool.acquire = MagicMock(return_value=MockAsyncCtx(conn))
+    processor = SettlementProcessor(pool)
     processor.generate_ledger_export = AsyncMock(return_value=str(ledger))
-    processor.publish_recon_events = AsyncMock(return_value=0)
     loop_progress = threading.Event()
 
     def engine(command, **kwargs):
